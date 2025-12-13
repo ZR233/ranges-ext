@@ -2,7 +2,7 @@
 
 use core::ops::Range;
 
-use ranges_ext::{CapacityError, RangeSet};
+use ranges_ext::{RangeError, RangeSet};
 
 fn r(start: i32, end: i32) -> Range<i32> {
     start..end
@@ -114,7 +114,7 @@ fn capacity_error_on_overflow() {
     set.add(r(30, 40), (), true).unwrap();
 
     // 尝试添加第三个区间（应该失败）
-    assert_eq!(set.add(r(50, 60), (), true), Err(Ok(CapacityError)));
+    assert_eq!(set.add(r(50, 60), (), true), Err(RangeError::Capacity));
 }
 
 #[test]
@@ -157,8 +157,6 @@ fn only_merge_when_kind_equals() {
 
 #[test]
 fn conflict_error_on_non_overwritable() {
-    use ranges_ext::ConflictError;
-
     let mut set = RangeSet::<i32, i32>::new();
 
     // 添加一个不可覆盖的区间
@@ -168,11 +166,11 @@ fn conflict_error_on_non_overwritable() {
     let result = set.add(r(20, 40), 2, true);
     assert!(result.is_err());
 
-    if let Err(Err(conflict)) = result {
-        assert_eq!(conflict.new.range, r(20, 40));
-        assert_eq!(conflict.new.kind, 2);
-        assert_eq!(conflict.existing.range, r(10, 30));
-        assert_eq!(conflict.existing.kind, 1);
+    if let Err(RangeError::Conflict { new, existing }) = result {
+        assert_eq!(new.range, r(20, 40));
+        assert_eq!(new.kind, 2);
+        assert_eq!(existing.range, r(10, 30));
+        assert_eq!(existing.kind, 1);
     } else {
         panic!("Expected ConflictError");
     }

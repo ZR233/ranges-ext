@@ -5,7 +5,9 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 name = "ranges-ext"
 readme = "README.md"
-version = "0.1.0"
+version = "0.1.1"
+repository = "https://github.com/ZR233/ranges-ext"
+registery = "crates-io"
 
 categories = ["data-structures", "no-std"]
 keywords = ["range", "interval", "set", "no_std"]

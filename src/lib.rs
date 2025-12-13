@@ -70,6 +70,75 @@ where
         }
     }
 
+    /// 检查两个区间是否有交集
+    #[inline]
+    fn ranges_overlap<T1: Ord + Copy>(r1: &Range<T1>, r2: &Range<T1>) -> bool {
+        !(r1.end <= r2.start || r1.start >= r2.end)
+    }
+
+    /// 分割区间：将原区间按分割范围分割成不重叠的部分
+    ///
+    /// 返回分割后的区间列表（最多2个区间）
+    fn split_range(elem: &T, split_range: &Range<T::Type>) -> [Option<T>; 2] {
+        let elem_range = elem.range();
+        let has_left = elem_range.start < split_range.start;
+        let has_right = elem_range.end > split_range.end;
+
+        match (has_left, has_right) {
+            (true, true) => {
+                // 分裂成两段
+                let left = elem_range.start..split_range.start;
+                let right = split_range.end..elem_range.end;
+                [
+                    if left.start < left.end {
+                        Some(elem.clone_with_range(left))
+                    } else {
+                        None
+                    },
+                    if right.start < right.end {
+                        Some(elem.clone_with_range(right))
+                    } else {
+                        None
+                    },
+                ]
+            }
+            (true, false) => {
+                // 只保留左半段
+                let left = elem_range.start..min(elem_range.end, split_range.start);
+                [
+                    if left.start < left.end {
+                        Some(elem.clone_with_range(left))
+                    } else {
+                        None
+                    },
+                    None,
+                ]
+            }
+            (false, true) => {
+                // 只保留右半段
+                let right = max(elem_range.start, split_range.end)..elem_range.end;
+                [
+                    None,
+                    if right.start < right.end {
+                        Some(elem.clone_with_range(right))
+                    } else {
+                        None
+                    },
+                ]
+            }
+            (false, false) => {
+                // 完全被覆盖，不保留
+                [None, None]
+            }
+        }
+    }
+
+    /// 安全地将元素推入 Vec，处理容量错误
+    #[inline]
+    fn push_element(vec: &mut Vec<T, C>, elem: T) -> Result<(), RangeError<T>> {
+        vec.push(elem).map_err(|_| RangeError::Capacity)
+    }
+
     /// 返回内部区间的切片（已排序、已合并、互不重叠）。
     #[inline]
     pub fn as_slice(&self) -> &[T] {
@@ -112,9 +181,7 @@ where
 
         for elem in &self.elements {
             // 如果没有交集，跳过
-            if elem.range().end <= new_info.range().start
-                || elem.range().start >= new_info.range().end
-            {
+            if !Self::ranges_overlap(elem.range(), new_info.range()) {
                 continue;
             }
 
@@ -138,58 +205,21 @@ where
 
         for elem in self.elements.drain(..) {
             // 如果没有交集，保留
-            if elem.range().end <= new_info.range().start
-                || elem.range().start >= new_info.range().end
-            {
-                out.push(elem).map_err(|_| RangeError::Capacity)?;
+            if !Self::ranges_overlap(elem.range(), new_info.range()) {
+                Self::push_element(&mut out, elem)?;
                 continue;
             }
 
             // 如果 kind 相同，稍后处理合并
             if elem.kind() == new_info.kind() {
-                out.push(elem).map_err(|_| RangeError::Capacity)?;
+                Self::push_element(&mut out, elem)?;
                 continue;
             }
 
             // kind 不同且有交集：分割原区间（已经确认可覆盖）
-
-            // 可覆盖：需要分割原区间
-            let has_left = elem.range().start < new_info.range().start;
-            let has_right = elem.range().end > new_info.range().end;
-
-            match (has_left, has_right) {
-                (true, true) => {
-                    // 分裂成两段
-                    let left = elem.range().start..new_info.range().start;
-                    if left.start < left.end {
-                        out.push(elem.clone_with_range(left))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                    let right = new_info.range().end..elem.range().end;
-                    if right.start < right.end {
-                        out.push(elem.clone_with_range(right))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (true, false) => {
-                    // 只保留左半段
-                    let left = elem.range().start..new_info.range().start;
-                    if left.start < left.end {
-                        out.push(elem.clone_with_range(left))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (false, true) => {
-                    // 只保留右半段
-                    let right = new_info.range().end..elem.range().end;
-                    if right.start < right.end {
-                        out.push(elem.clone_with_range(right))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (false, false) => {
-                    // 完全被覆盖，不保留
-                }
+            let split_parts = Self::split_range(&elem, new_info.range());
+            for part in split_parts.iter().flatten() {
+                Self::push_element(&mut out, part.clone())?;
             }
         }
 
@@ -197,9 +227,7 @@ where
 
         // 现在插入新区间，并与同 kind 的区间合并
         if self.elements.is_empty() {
-            self.elements
-                .push(new_info.clone())
-                .map_err(|_| RangeError::Capacity)?;
+            Self::push_element(&mut self.elements, new_info.clone())?;
             return Ok(());
         }
 
@@ -279,47 +307,15 @@ where
         let mut out: Vec<T, C> = Vec::new();
         for elem in self.elements.drain(..) {
             // 无交集
-            if elem.range().end <= range.start || elem.range().start >= range.end {
-                out.push(elem.clone()).map_err(|_| RangeError::Capacity)?;
+            if !Self::ranges_overlap(elem.range(), &range) {
+                Self::push_element(&mut out, elem)?;
                 continue;
             }
 
-            let has_left = elem.range().start < range.start;
-            let has_right = elem.range().end > range.end;
-
-            match (has_left, has_right) {
-                (true, true) => {
-                    // 需要分裂成两段
-                    let left = elem.range().start..min(elem.range().end, range.start);
-                    if left.start < left.end {
-                        out.push(elem.clone_with_range(left))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                    let right = max(elem.range().start, range.end)..elem.range().end;
-                    if right.start < right.end {
-                        out.push(elem.clone_with_range(right))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (true, false) => {
-                    // 只有左半段
-                    let left = elem.range().start..min(elem.range().end, range.start);
-                    if left.start < left.end {
-                        out.push(elem.clone_with_range(left))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (false, true) => {
-                    // 只有右半段
-                    let right = max(elem.range().start, range.end)..elem.range().end;
-                    if right.start < right.end {
-                        out.push(elem.clone_with_range(right))
-                            .map_err(|_| RangeError::Capacity)?;
-                    }
-                }
-                (false, false) => {
-                    // 完全被删除，不添加任何内容
-                }
+            // 有交集，需要分割
+            let split_parts = Self::split_range(&elem, &range);
+            for part in split_parts.iter().flatten() {
+                Self::push_element(&mut out, part.clone())?;
             }
         }
         self.elements = out;

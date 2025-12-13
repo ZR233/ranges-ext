@@ -2,47 +2,49 @@
 
 use core::ops::Range;
 
-use ranges_ext::RangeSet;
+use ranges_ext::{RangeSet, CapacityError};
 
 fn r(start: i32, end: i32) -> Range<i32> {
     start..end
 }
 
 #[test]
-fn add_merges_overlaps_and_adjacency() {
+fn add_merges_overlaps_and_adjacency() -> Result<(), CapacityError> {
     let mut set = RangeSet::<i32>::new();
-    set.add(r(10, 20));
-    set.add(r(30, 40));
-    set.add(r(15, 35));
+    set.add(r(10, 20))?;
+    set.add(r(30, 40))?;
+    set.add(r(15, 35))?;
     assert_eq!(set.as_slice(), &[r(10, 40)]);
 
     // 相邻也会合并（[10,20) + [20,25) => [10,25)）
     set.clear();
-    set.add(r(10, 20));
-    set.add(r(20, 25));
+    set.add(r(10, 20))?;
+    set.add(r(20, 25))?;
     assert_eq!(set.as_slice(), &[r(10, 25)]);
+    Ok(())
 }
 
 #[test]
-fn add_out_of_order_is_normalized() {
+fn add_out_of_order_is_normalized() -> Result<(), CapacityError> {
     let mut set = RangeSet::<i32>::new();
 
     // 乱序添加：应当最终排序并正确合并
-    set.add(r(30, 40));
-    set.add(r(10, 20));
-    set.add(r(25, 30));
-    set.add(r(20, 25));
+    set.add(r(30, 40))?;
+    set.add(r(10, 20))?;
+    set.add(r(25, 30))?;
+    set.add(r(20, 25))?;
     assert_eq!(set.as_slice(), &[r(10, 40)]);
 
     // 再加一个与头部相交的区间，仍应合并成一个
-    set.add(r(0, 12));
+    set.add(r(0, 12))?;
     assert_eq!(set.as_slice(), &[r(0, 40)]);
+    Ok(())
 }
 
 #[test]
-fn contains_works() {
+fn contains_works() -> Result<(), CapacityError> {
     let mut set = RangeSet::<i32>::new();
-    set.extend([r(10, 20), r(30, 40)]);
+    set.extend([r(10, 20), r(30, 40)])?;
 
     assert!(set.contains(10));
     assert!(set.contains(19));
@@ -50,33 +52,51 @@ fn contains_works() {
     assert!(!set.contains(29));
     assert!(set.contains(30));
     assert!(!set.contains(40));
+    Ok(())
 }
 
 #[test]
-fn remove_trims_and_splits() {
+fn remove_trims_and_splits() -> Result<(), CapacityError> {
     let mut set = RangeSet::<i32>::new();
-    set.add(r(10, 50));
+    set.add(r(10, 50))?;
 
     // 删除中间，触发分裂
-    set.remove(r(20, 30));
+    set.remove(r(20, 30))?;
     assert_eq!(set.as_slice(), &[r(10, 20), r(30, 50)]);
 
     // 删除左侧覆盖
-    set.remove(r(0, 12));
+    set.remove(r(0, 12))?;
     assert_eq!(set.as_slice(), &[r(12, 20), r(30, 50)]);
 
     // 删除跨多个区间
-    set.remove(r(15, 45));
+    set.remove(r(15, 45))?;
     assert_eq!(set.as_slice(), &[r(12, 15), r(45, 50)]);
+    Ok(())
 }
 
 #[test]
-fn remove_noop_on_empty_or_non_overlapping() {
+fn remove_noop_on_empty_or_non_overlapping() -> Result<(), CapacityError> {
     let mut set = RangeSet::<i32>::new();
-    set.remove(r(1, 2));
+    set.remove(r(1, 2))?;
     assert!(set.is_empty());
 
-    set.add(r(10, 20));
-    set.remove(r(0, 5));
+    set.add(r(10, 20))?;
+    set.remove(r(0, 5))?;
     assert_eq!(set.as_slice(), &[r(10, 20)]);
+    Ok(())
+}
+
+#[test]
+fn capacity_error_on_overflow() -> Result<(), CapacityError> {
+    // 使用容量为 2 的 RangeSet
+    let mut set: RangeSet<i32, 2> = RangeSet::new();
+
+    // 添加两个不重叠的区间（成功）
+    set.add(r(10, 20))?;
+    set.add(r(30, 40))?;
+
+    // 尝试添加第三个区间（应该失败）
+    assert_eq!(set.add(r(50, 60)), Err(CapacityError));
+
+    Ok(())
 }

@@ -26,9 +26,9 @@ use ranges_ext::RangeSet;
 let mut set = RangeSet::<i32>::new();
 
 // Add ranges (automatically normalized/merged)
-set.add(10..20);
-set.add(30..40);
-set.add(15..35);  // Overlaps with previous ranges, will be merged
+set.add(10..20)?;
+set.add(30..40)?;
+set.add(15..35)?;  // Overlaps with previous ranges, will be merged
 assert_eq!(set.as_slice(), &[10..40]);
 
 // Query
@@ -37,8 +37,8 @@ assert!(!set.contains(40));
 
 // Remove intersection (may trigger splitting)
 set.clear();
-set.add(10..50);
-set.remove(20..30);  // Splits the range into two
+set.add(10..50)?;
+set.remove(20..30)?;  // Splits the range into two
 assert_eq!(set.as_slice(), &[10..20, 30..50]);
 
 // Iterate over ranges
@@ -47,7 +47,7 @@ for range in set.iter() {
 }
 
 // Batch add multiple ranges
-set.extend([10..15, 20..25, 30..35]);
+set.extend([10..15, 20..25, 30..35])?;
 ```
 
 ## Custom Capacity
@@ -57,8 +57,8 @@ You can specify a custom capacity using the const generic parameter:
 ```rust
 // Create a RangeSet with capacity for 16 ranges
 let mut set: RangeSet<i32, 16> = RangeSet::new();
-set.add(1..10);
-set.add(20..30);
+set.add(1..10)?;
+set.add(20..30)?;
 ```
 
 ## API Reference
@@ -70,10 +70,9 @@ set.add(20..30);
 
 ### Range Operations
 
-- `add(range, meta)` - Add a range with metadata and merge
-- `add_range(range)` - Add a range without metadata (only for `M = ()`)
-- `extend(ranges)` - Batch add multiple ranges (only for `M = ()`)
-- `remove_range(range)` - Remove range intersection; may trigger splitting
+- `add(range)` - Add a range and merge overlapping/adjacent ranges. Returns `Result<(), CapacityError>`
+- `extend(ranges)` - Batch add multiple ranges. Returns `Result<(), CapacityError>`
+- `remove(range)` - Remove range intersection; may trigger splitting. Returns `Result<(), CapacityError>`
 
 ### Query Methods
 
@@ -83,7 +82,6 @@ set.add(20..30);
 
 ### Access Methods
 
-- `elements()` - Return slice of internal elements (contains merged ranges and original lists)
 - `as_slice()` - Return normalized range slice (only ranges, sorted, merged, non-overlapping)
 - `iter()` - Return iterator of normalized ranges (zero-copy)
 

@@ -7,6 +7,18 @@ use core::{
 
 use heapless::Vec;
 
+/// 容量不足错误
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapacityError;
+
+impl core::fmt::Display for CapacityError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "RangeSet capacity exceeded")
+    }
+}
+
+impl core::error::Error for CapacityError {}
+
 /// 一个「区间集合」数据结构：维护一组**有序、互不重叠**的半开区间 `[start, end)`。
 ///
 /// - 插入时会把重叠/相邻的区间自动合并。
@@ -68,14 +80,18 @@ where
     }
 
     /// 添加一个区间；会把与其重叠或相邻的区间合并。
-    pub fn add(&mut self, range: Range<T>) {
+    ///
+    /// # Errors
+    ///
+    /// 如果容量不足，返回 `CapacityError`。
+    pub fn add(&mut self, range: Range<T>) -> Result<(), CapacityError> {
         if range.start >= range.end {
-            return;
+            return Ok(());
         }
 
         if self.elements.is_empty() {
-            let _ = self.elements.push(range);
-            return;
+            self.elements.push(range).map_err(|_| CapacityError)?;
+            return Ok(());
         }
 
         // 二分查找插入位置：第一个 start >= range.start 的位置
@@ -116,7 +132,10 @@ where
             self.elements.remove(insert_at);
         }
 
-        let _ = self.elements.insert(insert_at, merged_range);
+        self.elements
+            .insert(insert_at, merged_range)
+            .map_err(|_| CapacityError)?;
+        Ok(())
     }
 
     /// 查询某个值是否落在任意一个区间中。
@@ -139,16 +158,20 @@ where
     /// 删除一个区间：从集合中移除与其相交的部分。
     ///
     /// 若被删除区间位于某个已有区间内部，会导致该已有区间被拆分为两段。
-    pub fn remove(&mut self, range: Range<T>) {
+    ///
+    /// # Errors
+    ///
+    /// 如果容量不足（删除操作导致区间分裂，新区间数量超过容量），返回 `CapacityError`。
+    pub fn remove(&mut self, range: Range<T>) -> Result<(), CapacityError> {
         if range.start >= range.end || self.elements.is_empty() {
-            return;
+            return Ok(());
         }
 
         let mut out: Vec<Range<T>, C> = Vec::new();
         for elem in self.elements.drain(..) {
             // 无交集
             if elem.end <= range.start || elem.start >= range.end {
-                let _ = out.push(elem);
+                out.push(elem).map_err(|_| CapacityError)?;
                 continue;
             }
 
@@ -160,25 +183,25 @@ where
                     // 需要分裂成两段
                     let left = elem.start..min(elem.end, range.start);
                     if left.start < left.end {
-                        let _ = out.push(left);
+                        out.push(left).map_err(|_| CapacityError)?;
                     }
                     let right = max(elem.start, range.end)..elem.end;
                     if right.start < right.end {
-                        let _ = out.push(right);
+                        out.push(right).map_err(|_| CapacityError)?;
                     }
                 }
                 (true, false) => {
                     // 只有左半段
                     let left = elem.start..min(elem.end, range.start);
                     if left.start < left.end {
-                        let _ = out.push(left);
+                        out.push(left).map_err(|_| CapacityError)?;
                     }
                 }
                 (false, true) => {
                     // 只有右半段
                     let right = max(elem.start, range.end)..elem.end;
                     if right.start < right.end {
-                        let _ = out.push(right);
+                        out.push(right).map_err(|_| CapacityError)?;
                     }
                 }
                 (false, false) => {
@@ -187,15 +210,21 @@ where
             }
         }
         self.elements = out;
+        Ok(())
     }
 
     /// 批量添加多个区间。
-    pub fn extend<I>(&mut self, ranges: I)
+    ///
+    /// # Errors
+    ///
+    /// 如果容量不足，返回 `CapacityError`。
+    pub fn extend<I>(&mut self, ranges: I) -> Result<(), CapacityError>
     where
         I: IntoIterator<Item = Range<T>>,
     {
         for r in ranges {
-            self.add(r);
+            self.add(r)?;
         }
+        Ok(())
     }
 }

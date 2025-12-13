@@ -23,8 +23,8 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for StrRange<T> {
     type Kind = &'static str;
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {
@@ -66,8 +66,8 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for IntRange<T> {
     type Kind = i32;
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {

@@ -15,9 +15,9 @@ fn test_merge_complex_scenarios() {
 
     // 期望：前两个区间和新区间合并成一个，第三个区间被分割
     assert_eq!(set.len(), 2);
-    assert_eq!(set.as_slice()[0].range(), &(0..22));
+    assert_eq!(set.as_slice()[0].range(), (0..22));
     assert_eq!(set.as_slice()[0].kind(), &1);
-    assert_eq!(set.as_slice()[1].range(), &(22..25));
+    assert_eq!(set.as_slice()[1].range(), (22..25));
     assert_eq!(set.as_slice()[1].kind(), &2);
 }
 
@@ -32,14 +32,14 @@ fn test_remove_split_edge_case() {
     set.remove(5..6).unwrap();
 
     assert_eq!(set.len(), 2);
-    assert_eq!(set.as_slice()[0].range(), &(0..5));
-    assert_eq!(set.as_slice()[1].range(), &(6..10));
+    assert_eq!(set.as_slice()[0].range(), (0..5));
+    assert_eq!(set.as_slice()[1].range(), (6..10));
 
     // 删除整个左半部分
     set.remove(0..5).unwrap();
 
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(6..10));
+    assert_eq!(set.as_slice()[0].range(), (6..10));
 }
 
 #[test]
@@ -88,6 +88,6 @@ fn test_adjacent_but_different_kind() {
     set.add(TestRangeWithKind::new(10..15, 2, true)).unwrap(); // 与前一个相同 kind
 
     assert_eq!(set.len(), 2);
-    assert_eq!(set.as_slice()[0].range(), &(0..5));
-    assert_eq!(set.as_slice()[1].range(), &(5..15)); // 后两个应该合并
+    assert_eq!(set.as_slice()[0].range(), (0..5));
+    assert_eq!(set.as_slice()[1].range(), (5..15)); // 后两个应该合并
 }

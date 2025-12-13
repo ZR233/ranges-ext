@@ -30,7 +30,7 @@ where
 pub trait RangeInfo: Debug + Clone + Sized {
     type Kind: Debug + Eq + Clone;
     type Type: Ord + Copy;
-    fn range(&self) -> &Range<Self::Type>;
+    fn range(&self) -> Range<Self::Type>;
     fn kind(&self) -> &Self::Kind;
     fn overwritable(&self) -> bool;
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
@@ -181,7 +181,7 @@ where
 
         for elem in &self.elements {
             // 如果没有交集，跳过
-            if !Self::ranges_overlap(elem.range(), new_info.range()) {
+            if !Self::ranges_overlap(&elem.range(), &new_info.range()) {
                 continue;
             }
 
@@ -205,7 +205,7 @@ where
 
         for elem in self.elements.drain(..) {
             // 如果没有交集，保留
-            if !Self::ranges_overlap(elem.range(), new_info.range()) {
+            if !Self::ranges_overlap(&elem.range(), &new_info.range()) {
                 Self::push_element(&mut out, elem)?;
                 continue;
             }
@@ -217,7 +217,7 @@ where
             }
 
             // kind 不同且有交集：分割原区间（已经确认可覆盖）
-            let split_parts = Self::split_range(&elem, new_info.range());
+            let split_parts = Self::split_range(&elem, &new_info.range());
             for part in split_parts.iter().flatten() {
                 Self::push_element(&mut out, part.clone())?;
             }
@@ -307,7 +307,7 @@ where
         let mut out: Vec<T, C> = Vec::new();
         for elem in self.elements.drain(..) {
             // 无交集
-            if !Self::ranges_overlap(elem.range(), &range) {
+            if !Self::ranges_overlap(&elem.range(), &range) {
                 Self::push_element(&mut out, elem)?;
                 continue;
             }

@@ -1,11 +1,6 @@
 // 测试用的通用导入和辅助结构体
-use core::fmt::Debug;
-use core::ops::Range;
-pub use ranges_ext::{RangeError, RangeInfo, RangeSet};
-
-fn r(start: i32, end: i32) -> Range<i32> {
-    start..end
-}
+use core::{fmt::Debug, ops::Range};
+pub use ranges_ext::*;
 
 // 简单的区间信息实现，用于测试
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,8 +24,8 @@ impl<T: Ord + Copy + Debug> RangeInfo for TestRange<T> {
     type Kind = ();
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {
@@ -50,6 +45,7 @@ impl<T: Ord + Copy + Debug> RangeInfo for TestRange<T> {
     }
 }
 
+#[allow(unused)]
 // 带有 kind 的区间信息实现
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TestRangeWithKind<T, K> {
@@ -58,6 +54,7 @@ pub struct TestRangeWithKind<T, K> {
     pub overwritable: bool,
 }
 
+#[allow(unused)]
 impl<T, K> TestRangeWithKind<T, K> {
     pub fn new(range: Range<T>, kind: K, overwritable: bool) -> Self {
         Self {
@@ -72,8 +69,8 @@ impl<T: Ord + Copy + Debug, K: Debug + Eq + Clone> RangeInfo for TestRangeWithKi
     type Kind = K;
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {

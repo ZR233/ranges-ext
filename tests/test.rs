@@ -31,8 +31,8 @@ impl<T: Ord + Copy + Debug> RangeInfo for TestRange<T> {
     type Kind = ();
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {
@@ -74,8 +74,8 @@ impl<T: Ord + Copy + Debug, K: Debug + Eq + Clone> RangeInfo for TestRangeWithKi
     type Kind = K;
     type Type = T;
 
-    fn range(&self) -> &Range<Self::Type> {
-        &self.range
+    fn range(&self) -> Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {
@@ -261,9 +261,9 @@ fn conflict_error_on_non_overwritable() {
     assert!(result.is_err());
 
     if let Err(RangeError::Conflict { new, existing }) = result {
-        assert_eq!(new.range(), &r(20, 40));
+        assert_eq!(new.range(), r(20, 40));
         assert_eq!(new.kind(), &2);
-        assert_eq!(existing.range(), &r(10, 30));
+        assert_eq!(existing.range(), r(10, 30));
         assert_eq!(existing.kind(), &1);
     } else {
         panic!("Expected ConflictError");

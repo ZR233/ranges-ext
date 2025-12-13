@@ -1,3 +1,5 @@
+#![allow(clippy::reversed_empty_ranges)]
+
 mod common;
 use common::*;
 
@@ -48,8 +50,8 @@ fn test_boundary_overlap() {
         type Kind = u32;
         type Type = T;
 
-        fn range(&self) -> &core::ops::Range<Self::Type> {
-            &self.range
+        fn range(&self) -> core::ops::Range<Self::Type> {
+            self.range.clone()
         }
 
         fn kind(&self) -> &Self::Kind {
@@ -77,8 +79,8 @@ fn test_boundary_overlap() {
     set.add(TestRangeWithKind::new(10..15, 2, true)).unwrap(); // kind 不同，不应合并
 
     assert_eq!(set.len(), 2);
-    assert_eq!(set.as_slice()[0].range(), &(0..10));
-    assert_eq!(set.as_slice()[1].range(), &(10..15));
+    assert_eq!(set.as_slice()[0].range(), (0..10));
+    assert_eq!(set.as_slice()[1].range(), (10..15));
 
     // 测试有间隙的情况
     set.clear();
@@ -86,8 +88,8 @@ fn test_boundary_overlap() {
     set.add(TestRangeWithKind::new(7..10, 1, true)).unwrap(); // 有间隙，不应合并
 
     assert_eq!(set.len(), 2);
-    assert_eq!(set.as_slice()[0].range(), &(0..5));
-    assert_eq!(set.as_slice()[1].range(), &(7..10));
+    assert_eq!(set.as_slice()[0].range(), (0..5));
+    assert_eq!(set.as_slice()[1].range(), (7..10));
 }
 
 #[test]
@@ -99,7 +101,7 @@ fn test_single_point_ranges() {
     set.add(TestRange::new(6..7, true)).unwrap(); // 应该合并
 
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(5..7));
+    assert_eq!(set.as_slice()[0].range(), (5..7));
 
     // 删除单点
     set.remove(6..6).unwrap(); // 删除空区间，应该 no-op
@@ -107,7 +109,7 @@ fn test_single_point_ranges() {
 
     set.remove(5..6).unwrap(); // 删除第一个点
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(6..7));
+    assert_eq!(set.as_slice()[0].range(), (6..7));
 }
 
 #[test]

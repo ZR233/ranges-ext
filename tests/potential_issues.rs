@@ -1,3 +1,5 @@
+#![allow(clippy::reversed_empty_ranges)]
+
 mod common;
 use common::*;
 
@@ -44,12 +46,12 @@ fn test_identical_ranges() {
     // 添加相同的区间（应该合并）
     set.add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(0..10));
+    assert_eq!(set.as_slice()[0].range(), (0..10));
 
     // 添加相同区间但不同 kind（应该替换）
     set.add(TestRangeWithKind::new(0..10, 2, true)).unwrap();
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(0..10));
+    assert_eq!(set.as_slice()[0].range(), (0..10));
     assert_eq!(set.as_slice()[0].kind(), &2);
 }
 
@@ -112,5 +114,5 @@ fn test_clear_and_reuse() {
     // 重新使用
     set.add(TestRangeWithKind::new(5..15, 3, true)).unwrap();
     assert_eq!(set.len(), 1);
-    assert_eq!(set.as_slice()[0].range(), &(5..15));
+    assert_eq!(set.as_slice()[0].range(), (5..15));
 }

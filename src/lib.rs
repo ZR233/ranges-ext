@@ -75,9 +75,7 @@ where
     K: core::fmt::Debug + Eq + Clone,
 {
     fn default() -> Self {
-        Self {
-            elements: Vec::new(),
-        }
+        Self::new()
     }
 }
 
@@ -87,8 +85,10 @@ where
     K: core::fmt::Debug + Eq + Clone,
 {
     /// 创建空集合。
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            elements: Vec::new(),
+        }
     }
 
     /// 返回内部区间的切片（已排序、已合并、互不重叠）。

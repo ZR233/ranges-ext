@@ -1,0 +1,13 @@
+[package]
+authors = ["周睿 <zrufo747@outlook.com>"]
+description = "A no_std range/interval set with merge, contains, and removal (with splitting)"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+name = "ranges-ext"
+readme = "README.md"
+version = "0.1.0"
+
+categories = ["data-structures", "no-std"]
+keywords = ["range", "interval", "set", "no_std"]
+
+[dependencies]

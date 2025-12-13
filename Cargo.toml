@@ -1,16 +1,14 @@
 [package]
 authors = ["周睿 <zrufo747@outlook.com>"]
+categories = ["data-structures", "no-std"]
 description = "A no_std range/interval set with merge, contains, and removal (with splitting)"
 edition = "2024"
+keywords = ["range", "interval", "set", "no_std"]
 license = "MIT OR Apache-2.0"
 name = "ranges-ext"
 readme = "README.md"
-version = "0.1.1"
 repository = "https://github.com/ZR233/ranges-ext"
-registery = "crates-io"
-
-categories = ["data-structures", "no-std"]
-keywords = ["range", "interval", "set", "no_std"]
+version = "0.1.2"
 
 [dependencies]
 heapless = "0.9"

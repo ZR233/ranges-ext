@@ -7,136 +7,21 @@ use core::{
 
 use heapless::Vec;
 
-/// 原始区间与 metadata 的配对。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OriginalRange<T, M> {
-    pub range: Range<T>,
-    pub meta: M,
-}
-
-/// 合并后的区间元素：包含合并后的 range 和所有原始区间列表。
-#[derive(Clone)]
-pub struct MergedRange<T, M, const C: usize = 128> {
-    /// 合并后的区间范围
-    pub merged: Range<T>,
-    /// 该合并区间包含的所有原始区间及其 metadata
-    pub originals: Vec<OriginalRange<T, M>, C>,
-}
-
-impl<T, M, const C: usize> core::fmt::Debug for MergedRange<T, M, C>
-where
-    T: core::fmt::Debug,
-    M: core::fmt::Debug,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("MergedRange")
-            .field(
-                "merged",
-                &format_args!("[{:?}..{:?})", self.merged.start, self.merged.end),
-            )
-            .field("originals", &OriginalsList(&self.originals))
-            .finish()
-    }
-}
-
-/// 辅助结构，用于格式化原始区间列表
-struct OriginalsList<'a, T, M>(&'a [OriginalRange<T, M>]);
-
-impl<T, M> core::fmt::Debug for OriginalsList<'_, T, M>
-where
-    T: core::fmt::Debug,
-    M: core::fmt::Debug,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut list = f.debug_list();
-        for orig in self.0 {
-            list.entry(&format_args!(
-                "[{:?}..{:?}) → {:?}",
-                orig.range.start, orig.range.end, orig.meta
-            ));
-        }
-        list.finish()
-    }
-}
-
-impl<T, M, const C: usize> core::fmt::Display for MergedRange<T, M, C>
-where
-    T: core::fmt::Display,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "[{}..{})", self.merged.start, self.merged.end)
-    }
-}
-
-impl<T, M, const C: usize> core::fmt::LowerHex for MergedRange<T, M, C>
-where
-    T: core::fmt::LowerHex,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if f.alternate() {
-            write!(f, "[{:#x}..{:#x})", self.merged.start, self.merged.end)
-        } else {
-            write!(f, "[{:x}..{:x})", self.merged.start, self.merged.end)
-        }
-    }
-}
-
-impl<T, M, const C: usize> core::fmt::UpperHex for MergedRange<T, M, C>
-where
-    T: core::fmt::UpperHex,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if f.alternate() {
-            write!(f, "[{:#X}..{:#X})", self.merged.start, self.merged.end)
-        } else {
-            write!(f, "[{:X}..{:X})", self.merged.start, self.merged.end)
-        }
-    }
-}
-
-impl<T, M, const C: usize> core::fmt::Binary for MergedRange<T, M, C>
-where
-    T: core::fmt::Binary,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if f.alternate() {
-            write!(f, "[{:#b}..{:#b})", self.merged.start, self.merged.end)
-        } else {
-            write!(f, "[{:b}..{:b})", self.merged.start, self.merged.end)
-        }
-    }
-}
-
-impl<T, M, const C: usize> core::fmt::Octal for MergedRange<T, M, C>
-where
-    T: core::fmt::Octal,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if f.alternate() {
-            write!(f, "[{:#o}..{:#o})", self.merged.start, self.merged.end)
-        } else {
-            write!(f, "[{:o}..{:o})", self.merged.start, self.merged.end)
-        }
-    }
-}
-
 /// 一个「区间集合」数据结构：维护一组**有序、互不重叠**的半开区间 `[start, end)`。
 ///
 /// - 插入时会把重叠/相邻的区间自动合并。
-/// - 每个合并后的区间会保留其包含的所有原始区间及 metadata。
 /// - 删除一个区间时，会从集合里移除交集；必要时把已有区间拆成左右两段。
-/// - 删除时会同步移除完全被删除的原始区间。
 ///
 /// 约定：空区间（`start >= end`）会被忽略。
 #[derive(Clone, Debug)]
-pub struct RangeSet<T, M = (), const C: usize = 128>
+pub struct RangeSet<T, const C: usize = 128>
 where
     T: Ord + Copy,
 {
-    elements: Vec<MergedRange<T, M, C>, C>,
+    elements: Vec<Range<T>, C>,
 }
 
-impl<T, M, const C: usize> Default for RangeSet<T, M, C>
+impl<T, const C: usize> Default for RangeSet<T, C>
 where
     T: Ord + Copy,
 {
@@ -147,7 +32,7 @@ where
     }
 }
 
-impl<T, M, const C: usize> RangeSet<T, M, C>
+impl<T, const C: usize> RangeSet<T, C>
 where
     T: Ord + Copy,
 {
@@ -156,21 +41,16 @@ where
         Self::default()
     }
 
-    /// 返回内部元素的切片（每个元素包含合并后的 range 和原始列表）。
+    /// 返回内部区间的切片（已排序、已合并、互不重叠）。
     #[inline]
-    pub fn elements(&self) -> &[MergedRange<T, M, C>] {
+    pub fn as_slice(&self) -> &[Range<T>] {
         &self.elements
     }
 
-    /// 返回归一化后的区间切片（仅 range，已排序、已合并、互不重叠）。
-    pub fn as_slice(&self) -> Vec<Range<T>, C> {
-        self.elements.iter().map(|e| e.merged.clone()).collect()
-    }
-
-    /// 返回归一化后的区间迭代器（零拷贝）。
+    /// 返回区间迭代器（零拷贝）。
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &Range<T>> {
-        self.elements.iter().map(|e| &e.merged)
+        self.elements.iter()
     }
 
     #[inline]
@@ -187,27 +67,14 @@ where
         self.elements.clear();
     }
 
-    /// 添加一个区间及其 metadata；会把与其重叠或相邻的区间合并。
-    pub fn add(&mut self, range: Range<T>, meta: M)
-    where
-        M: PartialEq,
-    {
+    /// 添加一个区间；会把与其重叠或相邻的区间合并。
+    pub fn add(&mut self, range: Range<T>) {
         if range.start >= range.end {
             return;
         }
 
-        let original = OriginalRange {
-            range: range.clone(),
-            meta,
-        };
-
         if self.elements.is_empty() {
-            let mut originals = Vec::new();
-            let _ = originals.push(original);
-            let _ = self.elements.push(MergedRange {
-                merged: range,
-                originals,
-            });
+            let _ = self.elements.push(range);
             return;
         }
 
@@ -215,7 +82,7 @@ where
         let insert_at = self
             .elements
             .binary_search_by(|e| {
-                if e.merged.start < range.start {
+                if e.start < range.start {
                     core::cmp::Ordering::Less
                 } else {
                     core::cmp::Ordering::Greater
@@ -224,79 +91,32 @@ where
             .unwrap_or_else(|pos| pos);
 
         let mut merged_range = range;
-        let mut merged_originals = Vec::new();
-        let _ = merged_originals.push(original);
 
         // 向左合并：若左侧区间与 range 重叠/相邻（end >= start）
         let mut insert_at = insert_at;
         while insert_at > 0 {
             let left = &self.elements[insert_at - 1];
-            if left.merged.end < merged_range.start {
+            if left.end < merged_range.start {
                 break;
             }
-            merged_range.start = min(merged_range.start, left.merged.start);
-            merged_range.end = max(merged_range.end, left.merged.end);
-            let left_elem = self.elements.remove(insert_at - 1);
-            for orig in left_elem.originals {
-                let _ = merged_originals.push(orig);
-            }
+            merged_range.start = min(merged_range.start, left.start);
+            merged_range.end = max(merged_range.end, left.end);
+            self.elements.remove(insert_at - 1);
             insert_at -= 1;
         }
 
         // 向右合并：若右侧区间与 range 重叠/相邻（start <= end）
         while insert_at < self.elements.len() {
             let right = &self.elements[insert_at];
-            if right.merged.start > merged_range.end {
+            if right.start > merged_range.end {
                 break;
             }
-            merged_range.start = min(merged_range.start, right.merged.start);
-            merged_range.end = max(merged_range.end, right.merged.end);
-            let right_elem = self.elements.remove(insert_at);
-            for orig in right_elem.originals {
-                let _ = merged_originals.push(orig);
-            }
+            merged_range.start = min(merged_range.start, right.start);
+            merged_range.end = max(merged_range.end, right.end);
+            self.elements.remove(insert_at);
         }
 
-        // 合并原始区间：对于 metadata 相等且相邻/重叠的原始区间进行合并
-        merged_originals = Self::merge_originals(merged_originals);
-
-        let _ = self.elements.insert(
-            insert_at,
-            MergedRange {
-                merged: merged_range,
-                originals: merged_originals,
-            },
-        );
-    }
-
-    /// 合并原始区间列表：对于 metadata 相等且相邻/重叠的原始区间进行合并
-    fn merge_originals(mut originals: Vec<OriginalRange<T, M>, C>) -> Vec<OriginalRange<T, M>, C>
-    where
-        M: PartialEq,
-    {
-        if originals.len() <= 1 {
-            return originals;
-        }
-
-        // 按区间起点排序（使用不稳定排序提升性能）
-        originals.sort_unstable_by(|a, b| a.range.start.cmp(&b.range.start));
-
-        let mut result = Vec::new();
-        let mut iter = originals.into_iter();
-        let mut current = iter.next().unwrap();
-
-        for next in iter {
-            // 如果 metadata 相等且区间相邻或重叠，则合并
-            if current.meta == next.meta && current.range.end >= next.range.start {
-                current.range.end = max(current.range.end, next.range.end);
-            } else {
-                let _ = result.push(current);
-                current = next;
-            }
-        }
-        let _ = result.push(current);
-
-        result
+        let _ = self.elements.insert(insert_at, merged_range);
     }
 
     /// 查询某个值是否落在任意一个区间中。
@@ -305,9 +125,9 @@ where
         // 二分查找：找到可能包含 value 的区间
         self.elements
             .binary_search_by(|e| {
-                if e.merged.end <= value {
+                if e.end <= value {
                     core::cmp::Ordering::Less
-                } else if e.merged.start > value {
+                } else if e.start > value {
                     core::cmp::Ordering::Greater
                 } else {
                     core::cmp::Ordering::Equal
@@ -319,104 +139,63 @@ where
     /// 删除一个区间：从集合中移除与其相交的部分。
     ///
     /// 若被删除区间位于某个已有区间内部，会导致该已有区间被拆分为两段。
-    /// 同时会移除完全被删除的原始区间。
-    pub fn remove_range(&mut self, range: Range<T>)
-    where
-        M: Clone,
-    {
+    pub fn remove(&mut self, range: Range<T>) {
         if range.start >= range.end || self.elements.is_empty() {
             return;
         }
 
-        let mut out: Vec<MergedRange<T, M, C>, C> = Vec::new();
+        let mut out: Vec<Range<T>, C> = Vec::new();
         for elem in self.elements.drain(..) {
             // 无交集
-            if elem.merged.end <= range.start || elem.merged.start >= range.end {
+            if elem.end <= range.start || elem.start >= range.end {
                 let _ = out.push(elem);
                 continue;
             }
 
-            // 过滤原始区间：移除完全被删除范围包含的原始区间
-            let filtered_originals: Vec<_, _> = elem
-                .originals
-                .into_iter()
-                .filter(|orig| {
-                    // 如果原始区间完全在删除范围内，则丢弃
-                    !(range.start <= orig.range.start && orig.range.end <= range.end)
-                })
-                .collect();
-
-            // 如果所有原始区间都被删除，跳过该元素
-            if filtered_originals.is_empty() {
-                continue;
-            }
-
-            let has_left = elem.merged.start < range.start;
-            let has_right = elem.merged.end > range.end;
+            let has_left = elem.start < range.start;
+            let has_right = elem.end > range.end;
 
             match (has_left, has_right) {
                 (true, true) => {
-                    // 需要分裂成两段，左右两边都需要克隆
-                    let left = elem.merged.start..min(elem.merged.end, range.start);
+                    // 需要分裂成两段
+                    let left = elem.start..min(elem.end, range.start);
                     if left.start < left.end {
-                        let _ = out.push(MergedRange {
-                            merged: left,
-                            originals: filtered_originals.clone(),
-                        });
+                        let _ = out.push(left);
                     }
-                    let right = max(elem.merged.start, range.end)..elem.merged.end;
+                    let right = max(elem.start, range.end)..elem.end;
                     if right.start < right.end {
-                        let _ = out.push(MergedRange {
-                            merged: right,
-                            originals: filtered_originals,
-                        });
+                        let _ = out.push(right);
                     }
                 }
                 (true, false) => {
                     // 只有左半段
-                    let left = elem.merged.start..min(elem.merged.end, range.start);
+                    let left = elem.start..min(elem.end, range.start);
                     if left.start < left.end {
-                        let _ = out.push(MergedRange {
-                            merged: left,
-                            originals: filtered_originals,
-                        });
+                        let _ = out.push(left);
                     }
                 }
                 (false, true) => {
                     // 只有右半段
-                    let right = max(elem.merged.start, range.end)..elem.merged.end;
+                    let right = max(elem.start, range.end)..elem.end;
                     if right.start < right.end {
-                        let _ = out.push(MergedRange {
-                            merged: right,
-                            originals: filtered_originals,
-                        });
+                        let _ = out.push(right);
                     }
                 }
                 (false, false) => {
-                    // 不应该到达这里，因为上面已经检查了无交集的情况
+                    // 完全被删除，不添加任何内容
                 }
             }
         }
         self.elements = out;
     }
-}
 
-impl<T> RangeSet<T, ()>
-where
-    T: Ord + Copy,
-{
-    /// 添加一个区间（不带 metadata）。
-    pub fn add_range(&mut self, range: Range<T>) {
-        self.add(range, ());
-    }
-
-    /// 批量添加多个区间（不带 metadata）。
+    /// 批量添加多个区间。
     pub fn extend<I>(&mut self, ranges: I)
     where
         I: IntoIterator<Item = Range<T>>,
     {
         for r in ranges {
-            self.add_range(r);
+            self.add(r);
         }
     }
 }

@@ -1,13 +1,12 @@
 # ranges-ext
 
-A range/interval set data structure designed for `no_std + alloc` environments.
+A simple and efficient range/interval set data structure designed for `no_std` environments.
 
 - Uses half-open range semantics: `[start, end)` (i.e. `start..end`)
 - **Automatically merges** overlapping or adjacent ranges
-- Supports **metadata** attached to each range
 - Checks whether a value is contained in any range
 - Removes a range by subtracting the intersection; can split an existing range into two
-- Supports **multiple output formats** (Debug, Display, hexadecimal, binary, octal, etc.)
+- Fixed-size capacity using `heapless::Vec` for stack allocation
 
 ## Installation
 
@@ -16,25 +15,21 @@ A range/interval set data structure designed for `no_std + alloc` environments.
 ranges-ext = "0.1"
 ```
 
-This crate is `#![no_std]` by default and depends on `alloc`.
+This crate is `#![no_std]` and uses `heapless::Vec` for storage.
 
-## Basic Usage
+## Usage
 
 ```rust
-use core::ops::Range;
 use ranges_ext::RangeSet;
 
-fn r(start: i32, end: i32) -> Range<i32> {
-    start..end
-}
-
+// Create a new RangeSet with default capacity (128)
 let mut set = RangeSet::<i32>::new();
 
 // Add ranges (automatically normalized/merged)
-set.add_range(r(10, 20));
-set.add_range(r(30, 40));
-set.add_range(r(15, 35));  // Overlaps with previous ranges, will be merged
-assert_eq!(set.as_slice(), &[r(10, 40)]);
+set.add(10..20);
+set.add(30..40);
+set.add(15..35);  // Overlaps with previous ranges, will be merged
+assert_eq!(set.as_slice(), &[10..40]);
 
 // Query
 assert!(set.contains(10));
@@ -42,68 +37,28 @@ assert!(!set.contains(40));
 
 // Remove intersection (may trigger splitting)
 set.clear();
-set.add_range(r(10, 50));
-set.remove_range(r(20, 30));
-assert_eq!(set.as_slice(), &[r(10, 20), r(30, 50)]);
+set.add(10..50);
+set.remove(20..30);  // Splits the range into two
+assert_eq!(set.as_slice(), &[10..20, 30..50]);
+
+// Iterate over ranges
+for range in set.iter() {
+    println!("[{}, {})", range.start, range.end);
+}
+
+// Batch add multiple ranges
+set.extend([10..15, 20..25, 30..35]);
 ```
 
-## Metadata Usage
+## Custom Capacity
 
-The power of this library lies in its support for attaching metadata to each range:
-
-```rust
-use ranges_ext::RangeSet;
-
-let mut set = RangeSet::<i32, &str>::new();
-
-// Add ranges with metadata
-set.add(10..20, "first");
-set.add(15..25, "second");  // Overlaps with the previous one, will be merged
-set.add(30..40, "third");
-
-// Merged ranges preserve all original ranges and metadata
-let elements = set.elements();
-assert_eq!(elements.len(), 2);
-
-// The first merged range [10,25) contains two original ranges
-assert_eq!(elements[0].merged, 10..25);
-assert_eq!(elements[0].originals.len(), 2);
-assert_eq!(elements[0].originals[0].range, 10..20);
-assert_eq!(elements[0].originals[0].meta, "first");
-assert_eq!(elements[0].originals[1].range, 15..25);
-assert_eq!(elements[0].originals[1].meta, "second");
-
-// Adjacent ranges with same metadata are automatically merged
-let mut set = RangeSet::<i32, &str>::new();
-set.add(10..20, "same");
-set.add(20..30, "same");  // Adjacent with same metadata
-set.add(30..40, "same");  // Will be merged into one original range
-
-assert_eq!(set.elements()[0].originals.len(), 1);
-assert_eq!(set.elements()[0].originals[0].range, 10..40);
-```
-
-## Formatting Output
-
-Supports multiple formatting options:
+You can specify a custom capacity using the const generic parameter:
 
 ```rust
-let mut set = RangeSet::<i32, &str>::new();
-set.add(10..20, "first");
-set.add(15..25, "second");
-
-// Display format: only shows the merged range
-println!("{}", set.elements()[0]);  // Output: [10..25)
-
-// Debug format: shows detailed information
-println!("{:?}", set.elements()[0]);
-// Output: MergedRange { merged: [10..25), originals: [[10..20) → "first", [15..25) → "second"] }
-
-// Hexadecimal format
-println!("{:x}", set.elements()[0]);  // Output: [a..19)
-
-// Binary format
-println!("{:b}", set.elements()[0]);  // Output: [1010..11001)
+// Create a RangeSet with capacity for 16 ranges
+let mut set: RangeSet<i32, 16> = RangeSet::new();
+set.add(1..10);
+set.add(20..30);
 ```
 
 ## API Reference

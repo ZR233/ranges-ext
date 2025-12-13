@@ -62,6 +62,7 @@ where
     }
 
     /// 返回内部元素的切片（每个元素包含合并后的 range 和原始列表）。
+    #[inline]
     pub fn elements(&self) -> &[MergedRange<T, M>] {
         &self.elements
     }
@@ -71,10 +72,18 @@ where
         self.elements.iter().map(|e| e.merged.clone()).collect()
     }
 
+    /// 返回归一化后的区间迭代器（零拷贝）。
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &Range<T>> {
+        self.elements.iter().map(|e| &e.merged)
+    }
+
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.elements.len()
     }
@@ -105,25 +114,33 @@ where
             return;
         }
 
-        // 找到第一个 start 大于等于 range.start 的位置
-        let mut insert_at = 0usize;
-        while insert_at < self.elements.len() && self.elements[insert_at].merged.start < range.start
-        {
-            insert_at += 1;
-        }
+        // 二分查找插入位置：第一个 start >= range.start 的位置
+        let insert_at = self
+            .elements
+            .binary_search_by(|e| {
+                if e.merged.start < range.start {
+                    core::cmp::Ordering::Less
+                } else {
+                    core::cmp::Ordering::Greater
+                }
+            })
+            .unwrap_or_else(|pos| pos);
 
-        let mut merged_range = range.clone();
+        let mut merged_range = range;
         let mut merged_originals = alloc::vec![original];
 
         // 向左合并：若左侧区间与 range 重叠/相邻（end >= start）
+        let mut insert_at = insert_at;
         while insert_at > 0 {
             let left = &self.elements[insert_at - 1];
-            if left.merged.end < range.start {
+            if left.merged.end < merged_range.start {
                 break;
             }
             merged_range.start = min(merged_range.start, left.merged.start);
             merged_range.end = max(merged_range.end, left.merged.end);
-            merged_originals.extend(self.elements.remove(insert_at - 1).originals);
+            let left_elem = self.elements.remove(insert_at - 1);
+            merged_originals.reserve(left_elem.originals.len());
+            merged_originals.extend(left_elem.originals);
             insert_at -= 1;
         }
 
@@ -135,7 +152,9 @@ where
             }
             merged_range.start = min(merged_range.start, right.merged.start);
             merged_range.end = max(merged_range.end, right.merged.end);
-            merged_originals.extend(self.elements.remove(insert_at).originals);
+            let right_elem = self.elements.remove(insert_at);
+            merged_originals.reserve(right_elem.originals.len());
+            merged_originals.extend(right_elem.originals);
         }
 
         // 合并原始区间：对于 metadata 相等且相邻/重叠的原始区间进行合并
@@ -151,20 +170,19 @@ where
     }
 
     /// 合并原始区间列表：对于 metadata 相等且相邻/重叠的原始区间进行合并
-    fn merge_originals(originals: Vec<OriginalRange<T, M>>) -> Vec<OriginalRange<T, M>>
+    fn merge_originals(mut originals: Vec<OriginalRange<T, M>>) -> Vec<OriginalRange<T, M>>
     where
         M: PartialEq,
     {
-        if originals.is_empty() {
+        if originals.len() <= 1 {
             return originals;
         }
 
-        // 先按区间起点排序
-        let mut sorted = originals;
-        sorted.sort_by(|a, b| a.range.start.cmp(&b.range.start));
+        // 按区间起点排序（使用不稳定排序提升性能）
+        originals.sort_unstable_by(|a, b| a.range.start.cmp(&b.range.start));
 
-        let mut result = Vec::with_capacity(sorted.len());
-        let mut iter = sorted.into_iter();
+        let mut result = Vec::with_capacity(originals.len());
+        let mut iter = originals.into_iter();
         let mut current = iter.next().unwrap();
 
         for next in iter {
@@ -182,23 +200,20 @@ where
     }
 
     /// 查询某个值是否落在任意一个区间中。
+    #[inline]
     pub fn contains(&self, value: T) -> bool {
-        // 二分查找最后一个 start <= value 的区间
-        let mut lo = 0usize;
-        let mut hi = self.elements.len();
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            if self.elements[mid].merged.start <= value {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-        if lo == 0 {
-            return false;
-        }
-        let r = &self.elements[lo - 1].merged;
-        r.start <= value && value < r.end
+        // 二分查找：找到可能包含 value 的区间
+        self.elements
+            .binary_search_by(|e| {
+                if e.merged.end <= value {
+                    core::cmp::Ordering::Less
+                } else if e.merged.start > value {
+                    core::cmp::Ordering::Greater
+                } else {
+                    core::cmp::Ordering::Equal
+                }
+            })
+            .is_ok()
     }
 
     /// 删除一个区间：从集合中移除与其相交的部分。
@@ -231,25 +246,54 @@ where
                 })
                 .collect();
 
-            // 左半段保留: [elem.merged.start, range.start)
-            if elem.merged.start < range.start {
-                let left = elem.merged.start..min(elem.merged.end, range.start);
-                if left.start < left.end {
-                    out.push(MergedRange {
-                        merged: left,
-                        originals: filtered_originals.clone(),
-                    });
-                }
+            // 如果所有原始区间都被删除，跳过该元素
+            if filtered_originals.is_empty() {
+                continue;
             }
 
-            // 右半段保留: [range.end, elem.merged.end)
-            if elem.merged.end > range.end {
-                let right = max(elem.merged.start, range.end)..elem.merged.end;
-                if right.start < right.end {
-                    out.push(MergedRange {
-                        merged: right,
-                        originals: filtered_originals,
-                    });
+            let has_left = elem.merged.start < range.start;
+            let has_right = elem.merged.end > range.end;
+
+            match (has_left, has_right) {
+                (true, true) => {
+                    // 需要分裂成两段，左右两边都需要克隆
+                    let left = elem.merged.start..min(elem.merged.end, range.start);
+                    if left.start < left.end {
+                        out.push(MergedRange {
+                            merged: left,
+                            originals: filtered_originals.clone(),
+                        });
+                    }
+                    let right = max(elem.merged.start, range.end)..elem.merged.end;
+                    if right.start < right.end {
+                        out.push(MergedRange {
+                            merged: right,
+                            originals: filtered_originals,
+                        });
+                    }
+                }
+                (true, false) => {
+                    // 只有左半段
+                    let left = elem.merged.start..min(elem.merged.end, range.start);
+                    if left.start < left.end {
+                        out.push(MergedRange {
+                            merged: left,
+                            originals: filtered_originals,
+                        });
+                    }
+                }
+                (false, true) => {
+                    // 只有右半段
+                    let right = max(elem.merged.start, range.end)..elem.merged.end;
+                    if right.start < right.end {
+                        out.push(MergedRange {
+                            merged: right,
+                            originals: filtered_originals,
+                        });
+                    }
+                }
+                (false, false) => {
+                    // 不应该到达这里，因为上面已经检查了无交集的情况
                 }
             }
         }

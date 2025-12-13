@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "ranges-ext"
 readme = "README.md"
 repository = "https://github.com/ZR233/ranges-ext"
-version = "0.2.1"
+version = "0.2.2"
 
 [dependencies]
 heapless = "0.9"

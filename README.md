@@ -42,8 +42,8 @@ impl RangeInfo for MyRange {
     type Kind = &'static str;
     type Type = i32;
 
-    fn range(&self) -> &core::ops::Range<Self::Type> {
-        &self.range
+    fn range(&self) -> core::ops::Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {
@@ -116,8 +116,8 @@ impl RangeInfo for SimpleRange {
     type Kind = ();
     type Type = i32;
 
-    fn range(&self) -> &core::ops::Range<Self::Type> {
-        &self.range
+    fn range(&self) -> core::ops::Range<Self::Type> {
+        self.range.clone()
     }
 
     fn kind(&self) -> &Self::Kind {

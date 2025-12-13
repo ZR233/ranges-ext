@@ -6,18 +6,34 @@ use core::{
 };
 
 use heapless::Vec;
+use thiserror::Error;
 
-/// 容量不足错误
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CapacityError;
-
-impl core::fmt::Display for CapacityError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "RangeSet capacity exceeded")
-    }
+/// RangeSet 错误类型
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum RangeSetError<T, K>
+where
+    T: Ord + Copy,
+    K: core::fmt::Debug + Eq + Clone,
+{
+    /// 容量不足错误
+    #[error("RangeSet capacity exceeded")]
+    Capacity,
+    /// 区间冲突错误：尝试覆盖不可覆盖的区间
+    #[error("Range conflict: new {new:?} conflicts with existing non-overwritable {existing:?}")]
+    Conflict {
+        /// 新添加的区间
+        new: RangeInfo<T, K>,
+        /// 已存在的冲突区间
+        existing: RangeInfo<T, K>,
+    },
 }
 
-impl core::error::Error for CapacityError {}
+// 为了向后兼容，保留这些类型别名
+#[deprecated(since = "0.1.5", note = "Use RangeSetError::Capacity instead")]
+pub type CapacityError = ();
+
+#[deprecated(since = "0.1.5", note = "Use RangeSetError::Conflict instead")]
+pub type ConflictError<T, K> = ();
 
 /// 区间信息：包含范围和自定义元数据
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +44,8 @@ where
 {
     pub range: Range<T>,
     pub kind: K,
+    /// 是否可被其他 kind 的区间覆盖
+    pub overwritable: bool,
 }
 
 impl<T, K> RangeInfo<T, K>
@@ -35,8 +53,12 @@ where
     T: Ord + Copy,
     K: core::fmt::Debug + Eq + Clone,
 {
-    pub fn new(range: Range<T>, kind: K) -> Self {
-        Self { range, kind }
+    pub fn new(range: Range<T>, kind: K, overwritable: bool) -> Self {
+        Self {
+            range,
+            kind,
+            overwritable,
+        }
     }
 }
 
@@ -104,33 +126,67 @@ where
     }
 
     /// 添加一个区间；会把与其重叠或相邻且 kind 相等的区间自动合并。
-    /// 对于 kind 不同的重叠区间，新区间会覆盖旧区间。
+    /// 对于 kind 不同的重叠区间：
+    /// - 如果旧区间可覆盖，则用新区间覆盖交集部分
+    /// - 如果旧区间不可覆盖，则返回冲突错误
     ///
     /// # Errors
     ///
-    /// 如果容量不足，返回 `CapacityError`。
-    pub fn add(&mut self, range: Range<T>, kind: K) -> Result<(), CapacityError> {
+    /// - 如果容量不足，返回 `RangeSetError::Capacity`。
+    /// - 如果与不可覆盖的区间冲突，返回 `RangeSetError::Conflict`。
+    pub fn add(
+        &mut self,
+        range: Range<T>,
+        kind: K,
+        overwritable: bool,
+    ) -> Result<(), RangeSetError<T, K>> {
         if range.start >= range.end {
             return Ok(());
         }
 
-        // 先移除与新区间重叠的所有不同 key 的区间部分
+        // 先检查是否有不可覆盖的冲突
+        let new_info = RangeInfo::new(range.clone(), kind.clone(), overwritable);
+
+        for elem in &self.elements {
+            // 如果没有交集，跳过
+            if elem.range.end <= range.start || elem.range.start >= range.end {
+                continue;
+            }
+
+            // 如果 kind 相同，跳过（稍后处理合并）
+            if elem.kind == kind {
+                continue;
+            }
+
+            // kind 不同且有交集：检查是否可覆盖
+            if !elem.overwritable {
+                // 不可覆盖，返回冲突错误
+                return Err(RangeSetError::Conflict {
+                    new: new_info,
+                    existing: elem.clone(),
+                });
+            }
+        }
+
+        // 所有冲突都可以覆盖，现在开始处理
         let mut out: Vec<RangeInfo<T, K>, C> = Vec::new();
 
         for elem in self.elements.drain(..) {
             // 如果没有交集，保留
             if elem.range.end <= range.start || elem.range.start >= range.end {
-                out.push(elem).map_err(|_| CapacityError)?;
+                out.push(elem).map_err(|_| RangeSetError::Capacity)?;
                 continue;
             }
 
             // 如果 kind 相同，稍后处理合并
             if elem.kind == kind {
-                out.push(elem).map_err(|_| CapacityError)?;
+                out.push(elem).map_err(|_| RangeSetError::Capacity)?;
                 continue;
             }
 
-            // kind 不同且有交集：需要分割原区间
+            // kind 不同且有交集：分割原区间（已经确认可覆盖）
+
+            // 可覆盖：需要分割原区间
             let has_left = elem.range.start < range.start;
             let has_right = elem.range.end > range.end;
 
@@ -139,29 +195,29 @@ where
                     // 分裂成两段
                     let left = elem.range.start..range.start;
                     if left.start < left.end {
-                        out.push(RangeInfo::new(left, elem.kind.clone()))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(left, elem.kind.clone(), elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                     let right = range.end..elem.range.end;
                     if right.start < right.end {
-                        out.push(RangeInfo::new(right, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(right, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (true, false) => {
                     // 只保留左半段
                     let left = elem.range.start..range.start;
                     if left.start < left.end {
-                        out.push(RangeInfo::new(left, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(left, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (false, true) => {
                     // 只保留右半段
                     let right = range.end..elem.range.end;
                     if right.start < right.end {
-                        out.push(RangeInfo::new(right, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(right, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (false, false) => {
@@ -175,8 +231,8 @@ where
         // 现在插入新区间，并与同 kind 的区间合并
         if self.elements.is_empty() {
             self.elements
-                .push(RangeInfo::new(range, kind))
-                .map_err(|_| CapacityError)?;
+                .push(RangeInfo::new(range, kind, overwritable))
+                .map_err(|_| RangeSetError::Capacity)?;
             return Ok(());
         }
 
@@ -219,8 +275,8 @@ where
         }
 
         self.elements
-            .insert(insert_at, RangeInfo::new(merged_range, kind))
-            .map_err(|_| CapacityError)?;
+            .insert(insert_at, RangeInfo::new(merged_range, kind, overwritable))
+            .map_err(|_| RangeSetError::Capacity)?;
         Ok(())
     }
 
@@ -247,8 +303,8 @@ where
     ///
     /// # Errors
     ///
-    /// 如果容量不足（删除操作导致区间分裂，新区间数量超过容量），返回 `CapacityError`。
-    pub fn remove(&mut self, range: Range<T>) -> Result<(), CapacityError> {
+    /// 如果容量不足（删除操作导致区间分裂，新区间数量超过容量），返回 `RangeSetError::Capacity`。
+    pub fn remove(&mut self, range: Range<T>) -> Result<(), RangeSetError<T, K>> {
         if range.start >= range.end || self.elements.is_empty() {
             return Ok(());
         }
@@ -257,7 +313,7 @@ where
         for elem in self.elements.drain(..) {
             // 无交集
             if elem.range.end <= range.start || elem.range.start >= range.end {
-                out.push(elem).map_err(|_| CapacityError)?;
+                out.push(elem).map_err(|_| RangeSetError::Capacity)?;
                 continue;
             }
 
@@ -269,29 +325,29 @@ where
                     // 需要分裂成两段
                     let left = elem.range.start..min(elem.range.end, range.start);
                     if left.start < left.end {
-                        out.push(RangeInfo::new(left, elem.kind.clone()))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(left, elem.kind.clone(), elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                     let right = max(elem.range.start, range.end)..elem.range.end;
                     if right.start < right.end {
-                        out.push(RangeInfo::new(right, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(right, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (true, false) => {
                     // 只有左半段
                     let left = elem.range.start..min(elem.range.end, range.start);
                     if left.start < left.end {
-                        out.push(RangeInfo::new(left, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(left, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (false, true) => {
                     // 只有右半段
                     let right = max(elem.range.start, range.end)..elem.range.end;
                     if right.start < right.end {
-                        out.push(RangeInfo::new(right, elem.kind))
-                            .map_err(|_| CapacityError)?;
+                        out.push(RangeInfo::new(right, elem.kind, elem.overwritable))
+                            .map_err(|_| RangeSetError::Capacity)?;
                     }
                 }
                 (false, false) => {
@@ -307,13 +363,13 @@ where
     ///
     /// # Errors
     ///
-    /// 如果容量不足，返回 `CapacityError`。
-    pub fn extend<I>(&mut self, ranges: I) -> Result<(), CapacityError>
+    /// 如果容量不足，返回 `RangeSetError::Capacity`。
+    pub fn extend<I>(&mut self, ranges: I) -> Result<(), RangeSetError<T, K>>
     where
-        I: IntoIterator<Item = (Range<T>, K)>,
+        I: IntoIterator<Item = (Range<T>, K, bool)>,
     {
-        for (r, kind) in ranges {
-            self.add(r, kind)?;
+        for (r, kind, overwritable) in ranges {
+            self.add(r, kind, overwritable)?;
         }
         Ok(())
     }

@@ -1,13 +1,11 @@
 #![no_std]
 
-extern crate alloc;
+use core::{
+    cmp::{max, min},
+    ops::Range,
+};
 
-use alloc::vec::Vec;
-use core::cmp::{max, min};
-use core::ops::Range;
-
-#[cfg(test)]
-extern crate std;
+use heapless::Vec;
 
 /// 原始区间与 metadata 的配对。
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,14 +16,14 @@ pub struct OriginalRange<T, M> {
 
 /// 合并后的区间元素：包含合并后的 range 和所有原始区间列表。
 #[derive(Clone)]
-pub struct MergedRange<T, M> {
+pub struct MergedRange<T, M, const C: usize = 128> {
     /// 合并后的区间范围
     pub merged: Range<T>,
     /// 该合并区间包含的所有原始区间及其 metadata
-    pub originals: Vec<OriginalRange<T, M>>,
+    pub originals: Vec<OriginalRange<T, M>, C>,
 }
 
-impl<T, M> core::fmt::Debug for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::Debug for MergedRange<T, M, C>
 where
     T: core::fmt::Debug,
     M: core::fmt::Debug,
@@ -61,7 +59,7 @@ where
     }
 }
 
-impl<T, M> core::fmt::Display for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::Display for MergedRange<T, M, C>
 where
     T: core::fmt::Display,
 {
@@ -70,7 +68,7 @@ where
     }
 }
 
-impl<T, M> core::fmt::LowerHex for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::LowerHex for MergedRange<T, M, C>
 where
     T: core::fmt::LowerHex,
 {
@@ -83,7 +81,7 @@ where
     }
 }
 
-impl<T, M> core::fmt::UpperHex for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::UpperHex for MergedRange<T, M, C>
 where
     T: core::fmt::UpperHex,
 {
@@ -96,7 +94,7 @@ where
     }
 }
 
-impl<T, M> core::fmt::Binary for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::Binary for MergedRange<T, M, C>
 where
     T: core::fmt::Binary,
 {
@@ -109,7 +107,7 @@ where
     }
 }
 
-impl<T, M> core::fmt::Octal for MergedRange<T, M>
+impl<T, M, const C: usize> core::fmt::Octal for MergedRange<T, M, C>
 where
     T: core::fmt::Octal,
 {
@@ -131,14 +129,14 @@ where
 ///
 /// 约定：空区间（`start >= end`）会被忽略。
 #[derive(Clone, Debug)]
-pub struct RangeSet<T, M = ()>
+pub struct RangeSet<T, M = (), const C: usize = 128>
 where
     T: Ord + Copy,
 {
-    elements: Vec<MergedRange<T, M>>,
+    elements: Vec<MergedRange<T, M, C>, C>,
 }
 
-impl<T, M> Default for RangeSet<T, M>
+impl<T, M, const C: usize> Default for RangeSet<T, M, C>
 where
     T: Ord + Copy,
 {
@@ -149,7 +147,7 @@ where
     }
 }
 
-impl<T, M> RangeSet<T, M>
+impl<T, M, const C: usize> RangeSet<T, M, C>
 where
     T: Ord + Copy,
 {
@@ -160,12 +158,12 @@ where
 
     /// 返回内部元素的切片（每个元素包含合并后的 range 和原始列表）。
     #[inline]
-    pub fn elements(&self) -> &[MergedRange<T, M>] {
+    pub fn elements(&self) -> &[MergedRange<T, M, C>] {
         &self.elements
     }
 
     /// 返回归一化后的区间切片（仅 range，已排序、已合并、互不重叠）。
-    pub fn as_slice(&self) -> Vec<Range<T>> {
+    pub fn as_slice(&self) -> Vec<Range<T>, C> {
         self.elements.iter().map(|e| e.merged.clone()).collect()
     }
 
@@ -204,9 +202,11 @@ where
         };
 
         if self.elements.is_empty() {
-            self.elements.push(MergedRange {
+            let mut originals = Vec::new();
+            let _ = originals.push(original);
+            let _ = self.elements.push(MergedRange {
                 merged: range,
-                originals: alloc::vec![original],
+                originals,
             });
             return;
         }
@@ -224,7 +224,8 @@ where
             .unwrap_or_else(|pos| pos);
 
         let mut merged_range = range;
-        let mut merged_originals = alloc::vec![original];
+        let mut merged_originals = Vec::new();
+        let _ = merged_originals.push(original);
 
         // 向左合并：若左侧区间与 range 重叠/相邻（end >= start）
         let mut insert_at = insert_at;
@@ -236,8 +237,9 @@ where
             merged_range.start = min(merged_range.start, left.merged.start);
             merged_range.end = max(merged_range.end, left.merged.end);
             let left_elem = self.elements.remove(insert_at - 1);
-            merged_originals.reserve(left_elem.originals.len());
-            merged_originals.extend(left_elem.originals);
+            for orig in left_elem.originals {
+                let _ = merged_originals.push(orig);
+            }
             insert_at -= 1;
         }
 
@@ -250,14 +252,15 @@ where
             merged_range.start = min(merged_range.start, right.merged.start);
             merged_range.end = max(merged_range.end, right.merged.end);
             let right_elem = self.elements.remove(insert_at);
-            merged_originals.reserve(right_elem.originals.len());
-            merged_originals.extend(right_elem.originals);
+            for orig in right_elem.originals {
+                let _ = merged_originals.push(orig);
+            }
         }
 
         // 合并原始区间：对于 metadata 相等且相邻/重叠的原始区间进行合并
         merged_originals = Self::merge_originals(merged_originals);
 
-        self.elements.insert(
+        let _ = self.elements.insert(
             insert_at,
             MergedRange {
                 merged: merged_range,
@@ -267,7 +270,7 @@ where
     }
 
     /// 合并原始区间列表：对于 metadata 相等且相邻/重叠的原始区间进行合并
-    fn merge_originals(mut originals: Vec<OriginalRange<T, M>>) -> Vec<OriginalRange<T, M>>
+    fn merge_originals(mut originals: Vec<OriginalRange<T, M>, C>) -> Vec<OriginalRange<T, M>, C>
     where
         M: PartialEq,
     {
@@ -278,7 +281,7 @@ where
         // 按区间起点排序（使用不稳定排序提升性能）
         originals.sort_unstable_by(|a, b| a.range.start.cmp(&b.range.start));
 
-        let mut result = Vec::with_capacity(originals.len());
+        let mut result = Vec::new();
         let mut iter = originals.into_iter();
         let mut current = iter.next().unwrap();
 
@@ -287,11 +290,11 @@ where
             if current.meta == next.meta && current.range.end >= next.range.start {
                 current.range.end = max(current.range.end, next.range.end);
             } else {
-                result.push(current);
+                let _ = result.push(current);
                 current = next;
             }
         }
-        result.push(current);
+        let _ = result.push(current);
 
         result
     }
@@ -325,16 +328,16 @@ where
             return;
         }
 
-        let mut out: Vec<MergedRange<T, M>> = Vec::with_capacity(self.elements.len() + 1);
+        let mut out: Vec<MergedRange<T, M, C>, C> = Vec::new();
         for elem in self.elements.drain(..) {
             // 无交集
             if elem.merged.end <= range.start || elem.merged.start >= range.end {
-                out.push(elem);
+                let _ = out.push(elem);
                 continue;
             }
 
             // 过滤原始区间：移除完全被删除范围包含的原始区间
-            let filtered_originals: Vec<_> = elem
+            let filtered_originals: Vec<_, _> = elem
                 .originals
                 .into_iter()
                 .filter(|orig| {
@@ -356,14 +359,14 @@ where
                     // 需要分裂成两段，左右两边都需要克隆
                     let left = elem.merged.start..min(elem.merged.end, range.start);
                     if left.start < left.end {
-                        out.push(MergedRange {
+                        let _ = out.push(MergedRange {
                             merged: left,
                             originals: filtered_originals.clone(),
                         });
                     }
                     let right = max(elem.merged.start, range.end)..elem.merged.end;
                     if right.start < right.end {
-                        out.push(MergedRange {
+                        let _ = out.push(MergedRange {
                             merged: right,
                             originals: filtered_originals,
                         });
@@ -373,7 +376,7 @@ where
                     // 只有左半段
                     let left = elem.merged.start..min(elem.merged.end, range.start);
                     if left.start < left.end {
-                        out.push(MergedRange {
+                        let _ = out.push(MergedRange {
                             merged: left,
                             originals: filtered_originals,
                         });
@@ -383,7 +386,7 @@ where
                     // 只有右半段
                     let right = max(elem.merged.start, range.end)..elem.merged.end;
                     if right.start < right.end {
-                        out.push(MergedRange {
+                        let _ = out.push(MergedRange {
                             merged: right,
                             originals: filtered_originals,
                         });

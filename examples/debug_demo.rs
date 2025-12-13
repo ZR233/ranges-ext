@@ -1,7 +1,7 @@
 use ranges_ext::RangeSet;
 
 fn main() {
-    let mut set = RangeSet::new();
+    let mut set: RangeSet<i32, &str, 16> = RangeSet::new();
     set.add(1..5, "first");
     set.add(3..8, "second");
     set.add(10..15, "third");

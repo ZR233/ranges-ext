@@ -13,3 +13,4 @@ categories = ["data-structures", "no-std"]
 keywords = ["range", "interval", "set", "no_std"]
 
 [dependencies]
+heapless = "0.9"

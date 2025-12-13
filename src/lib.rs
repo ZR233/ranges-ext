@@ -17,12 +17,109 @@ pub struct OriginalRange<T, M> {
 }
 
 /// 合并后的区间元素：包含合并后的 range 和所有原始区间列表。
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MergedRange<T, M> {
     /// 合并后的区间范围
     pub merged: Range<T>,
     /// 该合并区间包含的所有原始区间及其 metadata
     pub originals: Vec<OriginalRange<T, M>>,
+}
+
+impl<T, M> core::fmt::Debug for MergedRange<T, M>
+where
+    T: core::fmt::Debug,
+    M: core::fmt::Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("MergedRange")
+            .field(
+                "merged",
+                &format_args!("[{:?}..{:?})", self.merged.start, self.merged.end),
+            )
+            .field("originals", &OriginalsList(&self.originals))
+            .finish()
+    }
+}
+
+/// 辅助结构，用于格式化原始区间列表
+struct OriginalsList<'a, T, M>(&'a [OriginalRange<T, M>]);
+
+impl<T, M> core::fmt::Debug for OriginalsList<'_, T, M>
+where
+    T: core::fmt::Debug,
+    M: core::fmt::Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut list = f.debug_list();
+        for orig in self.0 {
+            list.entry(&format_args!(
+                "[{:?}..{:?}) → {:?}",
+                orig.range.start, orig.range.end, orig.meta
+            ));
+        }
+        list.finish()
+    }
+}
+
+impl<T, M> core::fmt::Display for MergedRange<T, M>
+where
+    T: core::fmt::Display,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "[{}..{})", self.merged.start, self.merged.end)
+    }
+}
+
+impl<T, M> core::fmt::LowerHex for MergedRange<T, M>
+where
+    T: core::fmt::LowerHex,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if f.alternate() {
+            write!(f, "[{:#x}..{:#x})", self.merged.start, self.merged.end)
+        } else {
+            write!(f, "[{:x}..{:x})", self.merged.start, self.merged.end)
+        }
+    }
+}
+
+impl<T, M> core::fmt::UpperHex for MergedRange<T, M>
+where
+    T: core::fmt::UpperHex,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if f.alternate() {
+            write!(f, "[{:#X}..{:#X})", self.merged.start, self.merged.end)
+        } else {
+            write!(f, "[{:X}..{:X})", self.merged.start, self.merged.end)
+        }
+    }
+}
+
+impl<T, M> core::fmt::Binary for MergedRange<T, M>
+where
+    T: core::fmt::Binary,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if f.alternate() {
+            write!(f, "[{:#b}..{:#b})", self.merged.start, self.merged.end)
+        } else {
+            write!(f, "[{:b}..{:b})", self.merged.start, self.merged.end)
+        }
+    }
+}
+
+impl<T, M> core::fmt::Octal for MergedRange<T, M>
+where
+    T: core::fmt::Octal,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if f.alternate() {
+            write!(f, "[{:#o}..{:#o})", self.merged.start, self.merged.end)
+        } else {
+            write!(f, "[{:o}..{:o})", self.merged.start, self.merged.end)
+        }
+    }
 }
 
 /// 一个「区间集合」数据结构：维护一组**有序、互不重叠**的半开区间 `[start, end)`。

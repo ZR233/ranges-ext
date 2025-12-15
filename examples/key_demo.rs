@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSet};
+use ranges_ext::{RangeInfo, RangeSetHeapless};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现
@@ -89,7 +89,7 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for IntRange<T> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 使用字符串作为 kind 的示例
-    let mut set: RangeSet<StrRange<i32>> = RangeSet::new();
+    let mut set: RangeSetHeapless<StrRange<i32>> = RangeSetHeapless::default();
 
     // 添加不同类型的区间（使用不同的 kind）
     set.add(StrRange::new(0..10, "type_a", true))?;
@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 演示：只有 kind 相同的相邻区间才会合并
-    let mut set2: RangeSet<IntRange<i32>> = RangeSet::new();
+    let mut set2: RangeSetHeapless<IntRange<i32>> = RangeSetHeapless::default();
     set2.add(IntRange::new(0..10, 1, true))?;
     set2.add(IntRange::new(10..20, 1, true))?; // kind 相同且相邻，会合并
     set2.add(IntRange::new(20..30, 2, true))?; // kind 不同，不合并

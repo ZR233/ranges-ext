@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSet};
+use ranges_ext::{RangeInfo, RangeSetHeapless};
 use std::ops::Range;
 
 // 简单的区间信息实现，用于示例
@@ -45,7 +45,7 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for DemoRange<T> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut set: RangeSet<DemoRange<i32>, 16> = RangeSet::new();
+    let mut set: RangeSetHeapless<DemoRange<i32>, 16> = RangeSetHeapless::default();
     set.add(DemoRange::new(1..5, true))?;
     set.add(DemoRange::new(3..8, true))?;
     set.add(DemoRange::new(10..15, true))?;

@@ -1,103 +1,15 @@
 #![cfg(any(windows, unix))]
 
-use core::fmt::Debug;
-use core::ops::Range;
+mod common;
+use common::*;
 
-use ranges_ext::{RangeError, RangeInfo, RangeSet};
-
-fn r(start: i32, end: i32) -> Range<i32> {
+fn r(start: i32, end: i32) -> core::ops::Range<i32> {
     start..end
-}
-
-// 简单的区间信息实现，用于测试
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct TestRange<T> {
-    range: Range<T>,
-    kind: (),
-    overwritable: bool,
-}
-
-impl<T> TestRange<T> {
-    fn new(range: Range<T>, overwritable: bool) -> Self {
-        Self {
-            range,
-            kind: (),
-            overwritable,
-        }
-    }
-}
-
-impl<T: Ord + Copy + Debug> RangeInfo for TestRange<T> {
-    type Kind = ();
-    type Type = T;
-
-    fn range(&self) -> Range<Self::Type> {
-        self.range.clone()
-    }
-
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
-    }
-
-    fn overwritable(&self) -> bool {
-        self.overwritable
-    }
-
-    fn clone_with_range(&self, range: Range<Self::Type>) -> Self {
-        Self {
-            range,
-            kind: self.kind,
-            overwritable: self.overwritable,
-        }
-    }
-}
-
-// 带有 kind 的区间信息实现
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct TestRangeWithKind<T, K> {
-    range: Range<T>,
-    kind: K,
-    overwritable: bool,
-}
-
-impl<T, K> TestRangeWithKind<T, K> {
-    fn new(range: Range<T>, kind: K, overwritable: bool) -> Self {
-        Self {
-            range,
-            kind,
-            overwritable,
-        }
-    }
-}
-
-impl<T: Ord + Copy + Debug, K: Debug + Eq + Clone> RangeInfo for TestRangeWithKind<T, K> {
-    type Kind = K;
-    type Type = T;
-
-    fn range(&self) -> Range<Self::Type> {
-        self.range.clone()
-    }
-
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
-    }
-
-    fn overwritable(&self) -> bool {
-        self.overwritable
-    }
-
-    fn clone_with_range(&self, range: Range<Self::Type>) -> Self {
-        Self {
-            range,
-            kind: self.kind.clone(),
-            overwritable: self.overwritable,
-        }
-    }
 }
 
 #[test]
 fn add_merges_overlaps_and_adjacency() {
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
     set.add(TestRange::new(r(10, 20), true)).unwrap();
     set.add(TestRange::new(r(30, 40), true)).unwrap();
     set.add(TestRange::new(r(15, 35), true)).unwrap();
@@ -116,7 +28,7 @@ fn add_merges_overlaps_and_adjacency() {
 
 #[test]
 fn add_out_of_order_is_normalized() {
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
 
     // 乱序添加：应当最终排序并正确合并
     set.add(TestRange::new(r(30, 40), true)).unwrap();
@@ -136,7 +48,7 @@ fn add_out_of_order_is_normalized() {
 
 #[test]
 fn contains_works() {
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
     set.extend([
         TestRange::new(r(10, 20), true),
         TestRange::new(r(30, 40), true),
@@ -153,7 +65,7 @@ fn contains_works() {
 
 #[test]
 fn remove_trims_and_splits() {
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
     set.add(TestRange::new(r(10, 50), true)).unwrap();
 
     // 删除中间，触发分裂
@@ -183,7 +95,7 @@ fn remove_trims_and_splits() {
 
 #[test]
 fn remove_noop_on_empty_or_non_overlapping() {
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
     set.remove(r(1, 2)).unwrap();
     assert!(set.is_empty());
 
@@ -197,7 +109,7 @@ fn remove_noop_on_empty_or_non_overlapping() {
 #[test]
 fn capacity_error_on_overflow() {
     // 使用容量为 2 的 RangeSet
-    let mut set: RangeSet<TestRange<i32>, 2> = RangeSet::new();
+    let mut set: RangeSetHeapless<TestRange<i32>, 2> = RangeSetHeapless::default();
 
     // 添加两个不重叠的区间（成功）
     set.add(TestRange::new(r(10, 20), true)).unwrap();
@@ -213,7 +125,7 @@ fn capacity_error_on_overflow() {
 #[test]
 fn only_merge_when_kind_equals() {
     // 测试只有当 kind 相等时才合并区间
-    let mut set = RangeSet::<TestRangeWithKind<i32, i32>>::new();
+    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
 
     // 添加两个相邻的区间，但 kind 不同，不应合并
     set.add(TestRangeWithKind::new(r(10, 20), 1, true)).unwrap();
@@ -250,7 +162,7 @@ fn only_merge_when_kind_equals() {
 
 #[test]
 fn conflict_error_on_non_overwritable() {
-    let mut set = RangeSet::<TestRangeWithKind<i32, i32>>::new();
+    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
 
     // 添加一个不可覆盖的区间
     set.add(TestRangeWithKind::new(r(10, 30), 1, false))
@@ -277,7 +189,7 @@ fn conflict_error_on_non_overwritable() {
 
 #[test]
 fn overwritable_ranges_can_be_replaced() {
-    let mut set = RangeSet::<TestRangeWithKind<i32, i32>>::new();
+    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
 
     // 添加一个可覆盖的区间
     set.add(TestRangeWithKind::new(r(10, 30), 1, true)).unwrap();

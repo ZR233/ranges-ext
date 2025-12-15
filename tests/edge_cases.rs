@@ -4,7 +4,7 @@ use common::*;
 #[test]
 fn test_merge_complex_scenarios() {
     // 测试复杂的合并场景：新区间与多个相同kind的区间重叠
-    let mut set = RangeSet::<TestRangeWithKind<i32, i32>>::new();
+    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
 
     set.add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
     set.add(TestRangeWithKind::new(10..15, 1, true)).unwrap();
@@ -24,7 +24,7 @@ fn test_merge_complex_scenarios() {
 #[test]
 fn test_remove_split_edge_case() {
     // 测试删除操作导致的分裂边界情况
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
 
     set.add(TestRange::new(0..10, true)).unwrap();
 
@@ -45,7 +45,7 @@ fn test_remove_split_edge_case() {
 #[test]
 fn test_capacity_overflow_simple() {
     // 测试简单的容量溢出
-    let mut set: RangeSet<TestRange<i32>, 2> = RangeSet::new();
+    let mut set: RangeSetHeapless<TestRange<i32>, 2> = RangeSetHeapless::default();
 
     set.add(TestRange::new(0..5, true)).unwrap();
     set.add(TestRange::new(10..15, true)).unwrap();
@@ -60,7 +60,7 @@ fn test_capacity_overflow_simple() {
 #[test]
 fn test_contains_binary_search_edge() {
     // 测试 contains 方法在边界情况下的行为
-    let mut set = RangeSet::<TestRange<i32>>::new();
+    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
 
     set.add(TestRange::new(10..20, true)).unwrap();
     set.add(TestRange::new(30..40, true)).unwrap();
@@ -81,7 +81,7 @@ fn test_contains_binary_search_edge() {
 #[test]
 fn test_adjacent_but_different_kind() {
     // 测试相邻但不同 kind 的区间
-    let mut set = RangeSet::<TestRangeWithKind<i32, i32>>::new();
+    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
 
     set.add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
     set.add(TestRangeWithKind::new(5..10, 2, true)).unwrap(); // 相邻但不同 kind

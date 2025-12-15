@@ -1,12 +1,18 @@
 #![no_std]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 use core::{
     cmp::{max, min},
     fmt::Debug,
-    ops::Range,
+    marker::PhantomData,
+    ops::{Deref, Range, RangeBounds},
 };
 
-use heapless::Vec;
+pub type RangeSetHeapless<T, const C: usize = 128> = RangeSet<T, heapless::Vec<T, C>>;
+#[cfg(feature = "alloc")]
+pub type RangeSetAlloc<T> = RangeSet<T, alloc::vec::Vec<T>>;
 
 /// RangeSet 错误类型
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -36,6 +42,16 @@ pub trait RangeInfo: Debug + Clone + Sized {
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }
 
+pub trait VecOp<T>: Default + Deref<Target = [T]> {
+    fn push_back(&mut self, item: T) -> Result<(), T>;
+    fn clear(&mut self);
+    fn insert(&mut self, index: usize, item: T) -> Result<(), T>;
+    fn remove(&mut self, index: usize) -> T;
+    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
+    where
+        R: RangeBounds<usize>;
+}
+
 /// 一个「区间集合」数据结构：维护一组**有序、互不重叠**的半开区间 `[start, end)`。
 ///
 /// - 插入时会把重叠/相邻且 kind 相等的区间自动合并。
@@ -43,30 +59,35 @@ pub trait RangeInfo: Debug + Clone + Sized {
 ///
 /// 约定：空区间（`start >= end`）会被忽略。
 #[derive(Clone, Debug)]
-pub struct RangeSet<T, const C: usize = 128>
+pub struct RangeSet<T, V>
 where
     T: RangeInfo,
+    V: VecOp<T>,
 {
-    elements: Vec<T, C>,
+    elements: V,
+    _marker: PhantomData<T>,
 }
 
-impl<T, const C: usize> Default for RangeSet<T, C>
+impl<T, V> Default for RangeSet<T, V>
 where
     T: RangeInfo,
+    V: VecOp<T>,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(V::default())
     }
 }
 
-impl<T, const C: usize> RangeSet<T, C>
+impl<T, V> RangeSet<T, V>
 where
     T: RangeInfo,
+    V: VecOp<T>,
 {
     /// 创建空集合。
-    pub const fn new() -> Self {
+    pub const fn new(v: V) -> Self {
         Self {
-            elements: Vec::new(),
+            elements: v,
+            _marker: PhantomData,
         }
     }
 
@@ -133,12 +154,6 @@ where
         }
     }
 
-    /// 安全地将元素推入 Vec，处理容量错误
-    #[inline]
-    fn push_element(vec: &mut Vec<T, C>, elem: T) -> Result<(), RangeError<T>> {
-        vec.push(elem).map_err(|_| RangeError::Capacity)
-    }
-
     /// 返回内部区间的切片（已排序、已合并、互不重叠）。
     #[inline]
     pub fn as_slice(&self) -> &[T] {
@@ -165,6 +180,10 @@ where
         self.elements.clear();
     }
 
+    fn push_back(out: &mut V, elem: T) -> Result<(), RangeError<T>> {
+        out.push_back(elem).map_err(|_| RangeError::Capacity)
+    }
+
     /// 添加一个区间；会把与其重叠或相邻且 kind 相等的区间自动合并。
     /// 对于 kind 不同的重叠区间：
     /// - 如果旧区间可覆盖，则用新区间覆盖交集部分
@@ -179,7 +198,7 @@ where
             return Ok(());
         }
 
-        for elem in &self.elements {
+        for elem in self.iter() {
             // 如果没有交集，跳过
             if !Self::ranges_overlap(&elem.range(), &new_info.range()) {
                 continue;
@@ -201,25 +220,25 @@ where
         }
 
         // 所有冲突都可以覆盖，现在开始处理
-        let mut out: Vec<T, C> = Vec::new();
+        let mut out = V::default();
 
         for elem in self.elements.drain(..) {
             // 如果没有交集，保留
             if !Self::ranges_overlap(&elem.range(), &new_info.range()) {
-                Self::push_element(&mut out, elem)?;
+                Self::push_back(&mut out, elem)?;
                 continue;
             }
 
             // 如果 kind 相同，稍后处理合并
             if elem.kind() == new_info.kind() {
-                Self::push_element(&mut out, elem)?;
+                Self::push_back(&mut out, elem)?;
                 continue;
             }
 
             // kind 不同且有交集：分割原区间（已经确认可覆盖）
             let split_parts = Self::split_range(&elem, &new_info.range());
             for part in split_parts.iter().flatten() {
-                Self::push_element(&mut out, part.clone())?;
+                Self::push_back(&mut out, part.clone())?;
             }
         }
 
@@ -227,7 +246,7 @@ where
 
         // 现在插入新区间，并与同 kind 的区间合并
         if self.elements.is_empty() {
-            Self::push_element(&mut self.elements, new_info.clone())?;
+            Self::push_back(&mut self.elements, new_info.clone())?;
             return Ok(());
         }
 
@@ -304,18 +323,18 @@ where
             return Ok(());
         }
 
-        let mut out: Vec<T, C> = Vec::new();
+        let mut out = V::default();
         for elem in self.elements.drain(..) {
             // 无交集
             if !Self::ranges_overlap(&elem.range(), &range) {
-                Self::push_element(&mut out, elem)?;
+                Self::push_back(&mut out, elem)?;
                 continue;
             }
 
             // 有交集，需要分割
             let split_parts = Self::split_range(&elem, &range);
             for part in split_parts.iter().flatten() {
-                Self::push_element(&mut out, part.clone())?;
+                Self::push_back(&mut out, part.clone())?;
             }
         }
         self.elements = out;
@@ -335,5 +354,58 @@ where
             self.add(v)?;
         }
         Ok(())
+    }
+}
+
+impl<T, const C: usize> VecOp<T> for heapless::Vec<T, C> {
+    fn push_back(&mut self, item: T) -> Result<(), T> {
+        self.push(item)
+    }
+
+    fn clear(&mut self) {
+        self.clear();
+    }
+
+    fn insert(&mut self, index: usize, item: T) -> Result<(), T> {
+        self.insert(index, item)
+    }
+
+    fn remove(&mut self, index: usize) -> T {
+        self.remove(index)
+    }
+
+    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
+    where
+        R: RangeBounds<usize>,
+    {
+        self.drain(range)
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T> VecOp<T> for alloc::vec::Vec<T> {
+    fn push_back(&mut self, item: T) -> Result<(), T> {
+        self.push(item);
+        Ok(())
+    }
+
+    fn clear(&mut self) {
+        self.clear();
+    }
+
+    fn insert(&mut self, index: usize, item: T) -> Result<(), T> {
+        self.insert(index, item);
+        Ok(())
+    }
+
+    fn remove(&mut self, index: usize) -> T {
+        self.remove(index)
+    }
+
+    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
+    where
+        R: RangeBounds<usize>,
+    {
+        self.drain(range)
     }
 }

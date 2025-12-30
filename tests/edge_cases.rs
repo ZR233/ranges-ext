@@ -16,9 +16,9 @@ fn test_merge_complex_scenarios() {
     // 期望：前两个区间和新区间合并成一个，第三个区间被分割
     assert_eq!(set.len(), 2);
     assert_eq!(set.as_slice()[0].range(), (0..22));
-    assert_eq!(set.as_slice()[0].kind(), &1);
+    assert_eq!(set.as_slice()[0].kind(), 1);
     assert_eq!(set.as_slice()[1].range(), (22..25));
-    assert_eq!(set.as_slice()[1].kind(), &2);
+    assert_eq!(set.as_slice()[1].kind(), 2);
 }
 
 #[test]

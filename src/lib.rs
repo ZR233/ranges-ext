@@ -37,7 +37,7 @@ pub trait RangeInfo: Debug + Clone + Sized {
     type Kind: Debug + Eq + Clone;
     type Type: Ord + Copy;
     fn range(&self) -> Range<Self::Type>;
-    fn kind(&self) -> &Self::Kind;
+    fn kind(&self) -> Self::Kind;
     fn overwritable(&self) -> bool;
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }

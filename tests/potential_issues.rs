@@ -52,7 +52,7 @@ fn test_identical_ranges() {
     set.add(TestRangeWithKind::new(0..10, 2, true)).unwrap();
     assert_eq!(set.len(), 1);
     assert_eq!(set.as_slice()[0].range(), (0..10));
-    assert_eq!(set.as_slice()[0].kind(), &2);
+    assert_eq!(set.as_slice()[0].kind(), 2);
 }
 
 #[test]

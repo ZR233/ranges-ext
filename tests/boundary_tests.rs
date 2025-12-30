@@ -54,8 +54,8 @@ fn test_boundary_overlap() {
             self.range.clone()
         }
 
-        fn kind(&self) -> &Self::Kind {
-            &self.kind
+        fn kind(&self) -> Self::Kind {
+            self.kind
         }
 
         fn overwritable(&self) -> bool {

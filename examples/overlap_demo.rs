@@ -27,8 +27,8 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for StrRange<T> {
         self.range.clone()
     }
 
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
+    fn kind(&self) -> Self::Kind {
+        self.kind
     }
 
     fn overwritable(&self) -> bool {

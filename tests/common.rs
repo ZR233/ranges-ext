@@ -28,8 +28,8 @@ impl<T: Ord + Copy + Debug> RangeInfo for TestRange<T> {
         self.range.clone()
     }
 
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
+    fn kind(&self) -> Self::Kind {
+        self.kind
     }
 
     fn overwritable(&self) -> bool {
@@ -73,8 +73,8 @@ impl<T: Ord + Copy + Debug, K: Debug + Eq + Clone> RangeInfo for TestRangeWithKi
         self.range.clone()
     }
 
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
+    fn kind(&self) -> Self::Kind {
+        self.kind.clone()
     }
 
     fn overwritable(&self) -> bool {

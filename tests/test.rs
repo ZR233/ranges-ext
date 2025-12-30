@@ -174,9 +174,9 @@ fn conflict_error_on_non_overwritable() {
 
     if let Err(RangeError::Conflict { new, existing }) = result {
         assert_eq!(new.range(), r(20, 40));
-        assert_eq!(new.kind(), &2);
+        assert_eq!(new.kind(), 2);
         assert_eq!(existing.range(), r(10, 30));
-        assert_eq!(existing.kind(), &1);
+        assert_eq!(existing.kind(), 1);
     } else {
         panic!("Expected ConflictError");
     }

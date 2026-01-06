@@ -234,7 +234,7 @@ impl<T: RangeInfo, const N: usize> RangeSetOps<T> for heapless::Vec<T, N> {
             }
             merged_range.start = min(merged_range.start, left.range().start);
             merged_range.end = max(merged_range.end, left.range().end);
-            self.swap_remove(insert_at - 1);
+            self.remove(insert_at - 1);
             insert_at -= 1;
         }
 
@@ -246,7 +246,7 @@ impl<T: RangeInfo, const N: usize> RangeSetOps<T> for heapless::Vec<T, N> {
             }
             merged_range.start = min(merged_range.start, right.range().start);
             merged_range.end = max(merged_range.end, right.range().end);
-            self.swap_remove(insert_at);
+            self.remove(insert_at);
         }
 
         self.insert(insert_at, new_info.clone_with_range(merged_range))

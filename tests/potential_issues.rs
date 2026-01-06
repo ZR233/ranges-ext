@@ -6,7 +6,7 @@ use common::*;
 #[test]
 fn test_large_range_operations() {
     // 测试大范围的操作，确保没有整数溢出
-    let mut set = RangeSetHeapless::<TestRange<u32>>::default();
+    let mut set = heapless::Vec::<TestRange<u32>, 128>::default();
 
     // 使用接近 u32::MAX 的值
     let max_val = u32::MAX - 10;
@@ -22,7 +22,7 @@ fn test_large_range_operations() {
 #[test]
 fn test_remove_empty_set() {
     // 测试对空集合的删除操作
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 删除空集合应该 no-op
     let result = set.test_remove(0..10);
@@ -38,7 +38,7 @@ fn test_remove_empty_set() {
 #[test]
 fn test_identical_ranges() {
     // 测试添加完全相同的区间
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     set.test_add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
     assert_eq!(set.len(), 1);
@@ -58,7 +58,7 @@ fn test_identical_ranges() {
 #[test]
 fn test_extend_with_errors() {
     // 测试 extend 方法遇到错误时的行为
-    let mut set: RangeSetHeapless<TestRange<i32>, 2> = RangeSetHeapless::new();
+    let mut set: heapless::Vec<TestRange<i32>, 2> = heapless::Vec::new();
 
     set.test_add(TestRange::new(0..5, true)).unwrap();
 
@@ -82,7 +82,7 @@ fn test_extend_with_errors() {
 #[test]
 fn test_iteration_order() {
     // 测试迭代器返回的区间是否按顺序排列
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 乱序添加
     set.test_add(TestRange::new(30..40, true)).unwrap();
@@ -102,7 +102,7 @@ fn test_iteration_order() {
 #[test]
 fn test_clear_and_reuse() {
     // 测试 clear 后重新使用
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     set.test_add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
     set.test_add(TestRangeWithKind::new(20..30, 2, true)).unwrap();

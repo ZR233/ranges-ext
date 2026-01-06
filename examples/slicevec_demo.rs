@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 使用字节缓冲区演示 ===\n");
 
     // 创建一个容量较小的 heapless::Vec
-    let mut set: RangeSetHeapless<DemoRange<i32>, 8> = RangeSetHeapless::new();
+    let mut set: heapless::Vec<DemoRange<i32>, 8> = heapless::Vec::new();
 
     // 创建字节缓冲区用于 add/remove 操作
     // 大小计算：size_of::<DemoRange<i32>>() * 预期容量

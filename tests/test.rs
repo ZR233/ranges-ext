@@ -9,7 +9,7 @@ fn r(start: i32, end: i32) -> core::ops::Range<i32> {
 
 #[test]
 fn add_merges_overlaps_and_adjacency() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
     set.test_add(TestRange::new(r(10, 20), true)).unwrap();
     set.test_add(TestRange::new(r(30, 40), true)).unwrap();
     set.test_add(TestRange::new(r(15, 35), true)).unwrap();
@@ -28,7 +28,7 @@ fn add_merges_overlaps_and_adjacency() {
 
 #[test]
 fn add_out_of_order_is_normalized() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 乱序添加：应当最终排序并正确合并
     set.test_add(TestRange::new(r(30, 40), true)).unwrap();
@@ -48,7 +48,7 @@ fn add_out_of_order_is_normalized() {
 
 #[test]
 fn contains_works() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
     set.test_extend([
         TestRange::new(r(10, 20), true),
         TestRange::new(r(30, 40), true),
@@ -65,7 +65,7 @@ fn contains_works() {
 
 #[test]
 fn remove_trims_and_splits() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
     set.test_add(TestRange::new(r(10, 50), true)).unwrap();
 
     // 删除中间，触发分裂
@@ -95,7 +95,7 @@ fn remove_trims_and_splits() {
 
 #[test]
 fn remove_noop_on_empty_or_non_overlapping() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
     set.test_remove(r(1, 2)).unwrap();
     assert!(set.is_empty());
 
@@ -109,7 +109,7 @@ fn remove_noop_on_empty_or_non_overlapping() {
 #[test]
 fn capacity_error_on_overflow() {
     // 使用容量为 2 的 RangeSet
-    let mut set: RangeSetHeapless<TestRange<i32>, 2> = RangeSetHeapless::new();
+    let mut set: heapless::Vec<TestRange<i32>, 2> = heapless::Vec::new();
 
     // 添加两个不重叠的区间（成功）
     set.test_add(TestRange::new(r(10, 20), true)).unwrap();
@@ -125,7 +125,7 @@ fn capacity_error_on_overflow() {
 #[test]
 fn only_merge_when_kind_equals() {
     // 测试只有当 kind 相等时才合并区间
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     // 添加两个相邻的区间，但 kind 不同，不应合并
     set.test_add(TestRangeWithKind::new(r(10, 20), 1, true)).unwrap();
@@ -162,7 +162,7 @@ fn only_merge_when_kind_equals() {
 
 #[test]
 fn conflict_error_on_non_overwritable() {
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     // 添加一个不可覆盖的区间
     set.test_add(TestRangeWithKind::new(r(10, 30), 1, false))
@@ -189,7 +189,7 @@ fn conflict_error_on_non_overwritable() {
 
 #[test]
 fn overwritable_ranges_can_be_replaced() {
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32, i32>>::default();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     // 添加一个可覆盖的区间
     set.test_add(TestRangeWithKind::new(r(10, 30), 1, true)).unwrap();

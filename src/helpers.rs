@@ -1,6 +1,6 @@
 use core::{mem, ops::Range, slice};
 
-use crate::{RangeInfo, SliceVec};
+use crate::RangeInfo;
 
 /// 检查两个区间是否有交集
 #[inline]

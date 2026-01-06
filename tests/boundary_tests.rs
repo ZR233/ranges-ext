@@ -5,7 +5,7 @@ use common::*;
 
 #[test]
 fn test_empty_range_handling() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 添加空区间（应该被忽略）
     let result = set.test_add(TestRange::new(10..10, true));
@@ -81,7 +81,7 @@ fn test_boundary_overlap() {
         }
     }
 
-    let mut set = RangeSetHeapless::<TestRangeWithKind<i32>>::new();
+    let mut set = heapless::Vec::<TestRangeWithKind<i32>, 128>::new();
 
     // 测试边界相接但不重叠的情况
     set.test_add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
@@ -104,7 +104,7 @@ fn test_boundary_overlap() {
 
 #[test]
 fn test_single_point_ranges() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 添加单点区间
     set.test_add(TestRange::new(5..6, true)).unwrap();
@@ -124,7 +124,7 @@ fn test_single_point_ranges() {
 
 #[test]
 fn test_extreme_values() {
-    let mut set = RangeSetHeapless::<TestRange<i32>>::default();
+    let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 测试极值
     set.test_add(TestRange::new(i32::MIN..i32::MAX, true)).unwrap();

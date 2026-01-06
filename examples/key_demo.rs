@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现
@@ -112,7 +112,7 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for IntRange<
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_buffer = [0u8; 1024];
     // 使用字符串作为 kind 的示例
-    let mut set: RangeSetHeapless<StrRange<i32>> = RangeSetHeapless::new();
+    let mut set: heapless::Vec<StrRange<i32>, 128> = heapless::Vec::new();
 
     // 添加不同类型的区间（使用不同的 kind）
     set.merge_add(StrRange::new(0..10, "type_a", true), &mut temp_buffer)?;
@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 演示：只有 kind 相同的相邻区间才会合并
-    let mut set2: RangeSetHeapless<IntRange<i32>> = RangeSetHeapless::new();
+    let mut set2: heapless::Vec<IntRange<i32>, 128> = heapless::Vec::new();
     let mut temp_buffer2 = [0u8; 1024];
     set2.merge_add(IntRange::new(0..10, 1, true), &mut temp_buffer2)?;
     set2.merge_add(IntRange::new(10..20, 1, true), &mut temp_buffer2)?; // kind 相同且相邻，会合并

@@ -3,13 +3,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use core::{
-    cmp::{max, min},
-    fmt::Debug,
-    ops::Range,
-};
-
-use tinyvec::SliceVec;
+use core::{fmt::Debug, ops::Range};
 
 /// RangeSet 操作 trait，为容器类型提供区间集合功能
 pub trait RangeSetOps<T: RangeInfo> {
@@ -51,10 +45,6 @@ pub trait RangeSetAllocOps<T: RangeInfo> {
     fn merge_contains_point(&self, value: T::Type) -> bool;
 }
 
-pub type RangeSetHeapless<T, const C: usize = 128> = heapless::Vec<T, C>;
-#[cfg(feature = "alloc")]
-pub type RangeSetAlloc<T> = alloc::vec::Vec<T>;
-
 /// RangeSet 错误类型
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RangeError<T>
@@ -83,11 +73,11 @@ pub trait RangeInfo: Debug + Clone + Sized + Default {
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }
 
+mod core_ops;
 /// 辅助函数模块
 mod helpers;
-mod core_ops;
 
-/// 实现模块
-mod heapless_ops;
 #[cfg(feature = "alloc")]
 mod alloc_ops;
+/// 实现模块
+mod heapless_ops;

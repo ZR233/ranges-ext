@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_buffer = [0u8; 1024];
     println!("=== 测试：kind 不同时，后者覆盖交集 ===\n");
 
-    let mut set = RangeSetHeapless::<StrRange<i32>>::new();
+    let mut set = heapless::Vec::<StrRange<i32>, 128>::new();
 
     // 场景 1: 完全覆盖
     println!("场景 1: 完全覆盖");

@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 简单的区间信息实现，用于示例
@@ -8,8 +8,6 @@ struct DemoRange<T> {
     kind: (),
     overwritable: bool,
 }
-
-
 
 impl<T: Default> Default for DemoRange<T> {
     fn default() -> Self {
@@ -58,7 +56,7 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for DemoRange
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_buffer = [0u8; 1024];
-    let mut set: RangeSetHeapless<DemoRange<i32>, 16> = RangeSetHeapless::new();
+    let mut set: heapless::Vec<DemoRange<i32>, 16> = heapless::Vec::new();
     set.merge_add(DemoRange::new(1..5, true), &mut temp_buffer)?;
     set.merge_add(DemoRange::new(3..8, true), &mut temp_buffer)?;
     set.merge_add(DemoRange::new(10..15, true), &mut temp_buffer)?;

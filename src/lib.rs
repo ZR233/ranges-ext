@@ -10,13 +10,13 @@ use core::{
 };
 
 mod core_ops;
-mod heapless_impl;
+mod heapless_ops;
 mod helpers;
 
 #[cfg(feature = "alloc")]
 mod alloc_ops;
 
-pub(crate) trait VecOps<T: RangeInfo> {
+pub trait VecOps<T: RangeInfo> {
     fn push(&mut self, item: T) -> Result<(), RangeError<T>>;
     fn as_slice(&self) -> &[T];
     fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
@@ -31,7 +31,7 @@ pub(crate) trait VecOps<T: RangeInfo> {
     fn clear(&mut self);
 }
 
-pub(crate) trait RangeSetBaseOps<T: RangeInfo>: VecOps<T> {
+pub trait RangeSetBaseOps<T: RangeInfo>: VecOps<T> {
     fn merge_add_with_temp(
         &mut self,
         new_info: T,
@@ -196,5 +196,3 @@ pub trait RangeInfo: Debug + Clone + Sized + Default {
     fn overwritable(&self) -> bool;
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }
-
-// mod heapless_ops;

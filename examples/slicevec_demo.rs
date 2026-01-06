@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeVecOps};
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

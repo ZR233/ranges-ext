@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use crate::{RangeError, RangeInfo, RangeSetAllocOps, RangeSetBaseOps, VecOps, core_ops};
+use crate::{RangeError, RangeExtBaseOps, RangeInfo, RangeVecAllocOps, VecOps, core_ops};
 
 impl<T: RangeInfo> VecOps<T> for alloc::vec::Vec<T> {
     fn push(&mut self, item: T) -> Result<(), RangeError<T>> {
@@ -37,7 +37,7 @@ impl<T: RangeInfo> VecOps<T> for alloc::vec::Vec<T> {
     }
 }
 
-impl<T: RangeInfo> RangeSetAllocOps<T> for alloc::vec::Vec<T> {
+impl<T: RangeInfo> RangeVecAllocOps<T> for alloc::vec::Vec<T> {
     fn merge_add(&mut self, new_info: T) -> Result<(), RangeError<T>> {
         let mut temp = alloc::vec::Vec::new();
         self.merge_add_with_temp(new_info, &mut temp)?;
@@ -66,4 +66,4 @@ impl<T: RangeInfo> RangeSetAllocOps<T> for alloc::vec::Vec<T> {
     }
 }
 
-impl<T: RangeInfo> RangeSetBaseOps<T> for alloc::vec::Vec<T> {}
+impl<T: RangeInfo> RangeExtBaseOps<T> for alloc::vec::Vec<T> {}

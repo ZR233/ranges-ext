@@ -3,11 +3,11 @@ use core::ops::Range;
 use tinyvec::SliceVec;
 
 use crate::{
-    RangeError, RangeInfo, RangeSetBaseOps, RangeSetOps, VecOps, core_ops,
+    RangeError, RangeExtBaseOps, RangeInfo, RangeVecOps, VecOps, core_ops,
     helpers::bytes_to_slice_mut,
 };
 
-impl<T: RangeInfo, const N: usize> RangeSetOps<T> for heapless::Vec<T, N> {
+impl<T: RangeInfo, const N: usize> RangeVecOps<T> for heapless::Vec<T, N> {
     fn merge_add(&mut self, new_info: T, temp: &mut [u8]) -> Result<(), RangeError<T>> {
         let temp_buff = bytes_to_slice_mut::<T>(temp);
         let mut temp = SliceVec::from_slice_len(temp_buff, 0);
@@ -75,7 +75,7 @@ impl<T: RangeInfo, const N: usize> VecOps<T> for heapless::Vec<T, N> {
     }
 }
 
-impl<T: RangeInfo, const N: usize> RangeSetBaseOps<T> for heapless::Vec<T, N> {}
+impl<T: RangeInfo, const N: usize> RangeExtBaseOps<T> for heapless::Vec<T, N> {}
 
 impl<T: RangeInfo> VecOps<T> for SliceVec<'_, T> {
     fn push(&mut self, item: T) -> Result<(), RangeError<T>> {

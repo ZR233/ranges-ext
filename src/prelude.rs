@@ -1,1 +1,1 @@
-pub use crate::{RangeError, RangeInfo, RangeSetAllocOps, RangeSetOps};
+pub use crate::{RangeError, RangeInfo, RangeVecAllocOps, RangeVecOps};

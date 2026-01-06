@@ -32,7 +32,7 @@ pub trait VecOps<T: RangeInfo> {
     fn clear(&mut self);
 }
 
-pub trait RangeSetBaseOps<T: RangeInfo>: VecOps<T> {
+pub trait RangeExtBaseOps<T: RangeInfo>: VecOps<T> {
     fn merge_add_with_temp(
         &mut self,
         new_info: T,
@@ -138,7 +138,7 @@ pub trait RangeSetBaseOps<T: RangeInfo>: VecOps<T> {
     }
 }
 
-pub trait RangeSetOps<T: RangeInfo> {
+pub trait RangeVecOps<T: RangeInfo> {
     fn merge_add(&mut self, new_info: T, temp: &mut [u8]) -> Result<(), RangeError<T>>;
 
     fn merge_remove(&mut self, range: Range<T::Type>, temp: &mut [u8])
@@ -154,7 +154,7 @@ pub trait RangeSetOps<T: RangeInfo> {
 /// RangeSet 操作 trait（alloc 版本），为带分配器的容器提供区间集合功能
 /// 相比 RangeSetOps，不需要用户提供临时缓冲区
 #[cfg(feature = "alloc")]
-pub trait RangeSetAllocOps<T: RangeInfo> {
+pub trait RangeVecAllocOps<T: RangeInfo> {
     /// 添加一个区间（会自动合并相邻区间）
     fn merge_add(&mut self, new_info: T) -> Result<(), RangeError<T>>;
 

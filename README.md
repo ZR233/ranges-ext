@@ -1,40 +1,58 @@
 # ranges-ext
 
-An efficient range/interval set data structure designed for `no_std` environments.
+An efficient range/interval set data structure designed for `no_std` environments, with support for metadata, smart merging, and interval splitting.
 
-- Uses half-open interval semantics: `[start, end)` (i.e., `start..end`)
-- **Automatic merging** of overlapping or adjacent intervals
-- Supports querying whether a value falls within any interval
-- Supports interval removal, removing intersections from the set; splits existing intervals when necessary
-- Uses `heapless::Vec` for fixed-capacity storage with stack allocation support
-- **Supports metadata (kind)**: Each interval can carry custom metadata
-- **Supports overwrite control**: Specify whether intervals can be overwritten by other intervals
+## Core Features
+
+- **Trait-based Design** - Support custom interval types via `RangeInfo` trait
+- **Smart Merging** - Automatically merge overlapping or adjacent intervals with the same kind
+- **Metadata Support** - Each interval can carry custom metadata (kind)
+- **Overwrite Control** - Precise control over which intervals can be overwritten
+- **Dual Mode Support** - heapless mode (stack-allocated) and alloc mode (heap-allocated)
+- **Interval Splitting** - Remove operations can automatically split existing intervals
+- **Zero-copy Iteration** - Efficient interval traversal
+- **`no_std` Compatible** - Suitable for embedded and bare-metal environments
 
 ## Installation
 
+### Basic Installation (heapless mode)
+
 ```toml
 [dependencies]
-ranges-ext = "0.2"
+ranges-ext = "0.5"
 ```
 
-This library is `#![no_std]` and uses `heapless::Vec` for storage.
+### Enable Alloc Feature (optional)
+
+```toml
+[dependencies]
+ranges-ext = { version = "0.5", features = ["alloc"] }
+```
+
+This library is `#![no_std]` by default and can be used directly in embedded environments. Enable the `alloc` feature to use dynamic capacity mode in standard environments.
 
 ## Quick Start
 
-```rust
-use ranges_ext::{RangeSet, RangeInfo};
+### Heapless Mode (suitable for no_std environments)
 
-// First, define a struct that implements the RangeInfo trait
+```rust
+use ranges_ext::{RangeInfo, RangeVecOps};
+use std::ops::Range;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MyRange {
-    range: core::ops::Range<i32>,
-    kind: &'static str,      // metadata
-    overwritable: bool,     // whether overwritable
+    range: Range<i32>,
+    kind: &'static str,
+    overwritable: bool,
 }
 
-impl MyRange {
-    fn new(range: core::ops::Range<i32>, kind: &'static str, overwritable: bool) -> Self {
-        Self { range, kind, overwritable }
+impl Default for MyRange {
+    fn default() -> Self {
+        Self {
+            range: 0..0,
+            kind: "",
+            overwritable: false,
+        }
     }
 }
 
@@ -42,19 +60,19 @@ impl RangeInfo for MyRange {
     type Kind = &'static str;
     type Type = i32;
 
-    fn range(&self) -> core::ops::Range<Self::Type> {
+    fn range(&self) -> Range<Self::Type> {
         self.range.clone()
     }
 
-    fn kind(&self) -> &Self::Kind {
-        &self.kind
+    fn kind(&self) -> Self::Kind {
+        self.kind
     }
 
     fn overwritable(&self) -> bool {
         self.overwritable
     }
 
-    fn clone_with_range(&self, range: core::ops::Range<Self::Type>) -> Self {
+    fn clone_with_range(&self, range: Range<Self::Type>) -> Self {
         Self {
             range,
             kind: self.kind,
@@ -63,52 +81,95 @@ impl RangeInfo for MyRange {
     }
 }
 
-// Create RangeSet
-let mut set = RangeSet::<MyRange>::new();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create temporary buffer (required for heapless mode)
+    let mut temp_buffer = [0u8; 1024];
 
-// Add intervals (intervals with the same kind that are adjacent or overlapping will automatically merge)
-set.add(MyRange::new(10..20, "A", true))?;
-set.add(MyRange::new(30..40, "A", true))?;
-set.add(MyRange::new(15..35, "A", true))?;  // Overlaps with the first two intervals, will merge
-assert_eq!(set.len(), 1);
-assert_eq!(set.as_slice()[0].range(), &(10..40));
-assert_eq!(set.as_slice()[0].kind(), &"A");
+    // Use heapless::Vec as container
+    let mut set: heapless::Vec<MyRange, 16> = heapless::Vec::new();
 
-// Add intervals with different kinds
-set.add(MyRange::new(35..45, "B", true))?;
-assert_eq!(set.len(), 2);
+    // Add intervals (adjacent/overlapping intervals with same kind will auto-merge)
+    set.merge_add(MyRange {
+        range: 10..20,
+        kind: "A",
+        overwritable: true,
+    }, &mut temp_buffer)?;
 
-// Query
-assert!(set.contains(10));
-assert!(set.contains(39));
-assert!(!set.contains(45));
+    set.merge_add(MyRange {
+        range: 30..40,
+        kind: "A",
+        overwritable: true,
+    }, &mut temp_buffer)?;
 
-// Remove intervals (preserves intersections with other intervals)
-set.remove(20..30)?;
-assert_eq!(set.len(), 2);
+    set.merge_add(MyRange {
+        range: 15..35,
+        kind: "A",
+        overwritable: true,
+    }, &mut temp_buffer)?;
 
-// Iterator
-for info in set.iter() {
-    println!("[{}, {}) kind={}", info.range().start, info.range().end, info.kind());
+    // Three intervals merge into one
+    assert_eq!(set.len(), 1);
+    assert_eq!(set.as_slice()[0].range(), 10..40);
+
+    // Query
+    assert!(set.contains_point(10));
+    assert!(!set.contains_point(45));
+
+    Ok(())
 }
 ```
 
-## Basic Usage (No Metadata)
-
-If you don't need metadata, you can use a simpler struct:
+### Alloc Mode (suitable for standard environments)
 
 ```rust
-use ranges_ext::{RangeSet, RangeInfo};
+use ranges_ext::{RangeInfo, RangeVecAllocOps};
 
-#[derive(Clone, Debug)]
+// [Same MyRange definition as above]
+
+#[cfg(feature = "alloc")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Use alloc::vec::Vec as container (no temporary buffer needed)
+    let mut set: alloc::vec::Vec<MyRange> = alloc::vec::Vec::new();
+
+    // Add intervals (no temporary buffer needed)
+    set.merge_add(MyRange {
+        range: 10..20,
+        kind: "A",
+        overwritable: true,
+    })?;
+
+    set.merge_add(MyRange {
+        range: 15..35,
+        kind: "A",
+        overwritable: true,
+    })?;
+
+    // Auto-merge
+    assert_eq!(set.len(), 1);
+
+    Ok(())
+}
+```
+
+### Simple Intervals Without Metadata
+
+If you don't need metadata, you can use the unit type `()`:
+
+```rust
+use ranges_ext::{RangeInfo, RangeVecOps};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct SimpleRange {
     range: core::ops::Range<i32>,
     overwritable: bool,
 }
 
-impl SimpleRange {
-    fn new(range: core::ops::Range<i32>, overwritable: bool) -> Self {
-        Self { range, overwritable }
+impl Default for SimpleRange {
+    fn default() -> Self {
+        Self {
+            range: 0..0,
+            overwritable: false,
+        }
     }
 }
 
@@ -120,8 +181,8 @@ impl RangeInfo for SimpleRange {
         self.range.clone()
     }
 
-    fn kind(&self) -> &Self::Kind {
-        &()
+    fn kind(&self) -> Self::Kind {
+        ()
     }
 
     fn overwritable(&self) -> bool {
@@ -136,107 +197,429 @@ impl RangeInfo for SimpleRange {
     }
 }
 
-let mut set = RangeSet::<SimpleRange>::new();
-set.add(SimpleRange::new(10..20, true))?;
-set.add(SimpleRange::new(30..40, true))?;
+let mut temp_buffer = [0u8; 1024];
+let mut set: heapless::Vec<SimpleRange, 16> = heapless::Vec::new();
+
+set.merge_add(SimpleRange {
+    range: 10..20,
+    overwritable: true,
+}, &mut temp_buffer)?;
 ```
 
-## Custom Capacity
+## Core Concepts
 
-You can specify custom capacity through const generic parameters:
+### RangeInfo Trait
 
-```rust
-// Create a RangeSet with capacity 16
-let mut set: RangeSet<MyRange, 16> = RangeSet::new();
-```
-
-## Core Trait: RangeInfo
+`RangeInfo` is the core trait that defines the requirements for interval types:
 
 ```rust
-pub trait RangeInfo: Debug + Clone + Sized {
-    type Kind: Debug + Eq + Clone;
-    type Type: Ord + Copy;
+pub trait RangeInfo: Debug + Clone + Sized + Default {
+    type Kind: Debug + Eq + Clone;  // Metadata type
+    type Type: Ord + Copy;           // Interval value type
 
-    fn range(&self) -> Range<Self::Type>;
-    fn kind(&self) -> &Self::Kind;
-    fn overwritable(&self) -> bool;
-    fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
+    fn range(&self) -> Range<Self::Type>;      // Get interval
+    fn kind(&self) -> Self::Kind;              // Get metadata (owned)
+    fn overwritable(&self) -> bool;            // Whether it can be overwritten
+    fn clone_with_range(&self, range: Range<Self::Type>) -> Self;  // Clone with new range
 }
 ```
 
-## API Reference
+**Important Change (0.5.0)**: The `kind()` method now returns the owned type `Self::Kind` instead of a reference `&Self::Kind`.
 
-### Constructors
+### Two Operation Modes
 
-- `RangeSet<T, C>::new()` - Create an empty set
-- `RangeSet<T, C>::default()` - Create an empty set through the Default trait
+#### RangeVecOps (Heapless Mode)
 
-### Interval Operations
+Provides interval operations for fixed-capacity vectors (like `heapless::Vec<T, N>`):
 
-- `add(info)` - Add interval, automatically merge overlapping/adjacent intervals of the same kind. Returns `Result<(), RangeError>`
-- `extend(ranges)` - Batch add multiple intervals. Returns `Result<(), RangeError>`
-- `remove(range)` - Remove interval intersections; may trigger interval splitting. Returns `Result<(), RangeError>`
+- **Requires temporary buffer**: All methods need a `&mut [u8]` for temporary storage
+- **Use cases**: no_std environments, embedded systems, deterministic memory usage
 
-### Query Methods
+```rust
+fn merge_add(&mut self, new_info: T, temp: &mut [u8]) -> Result<(), RangeError<T>>;
+fn merge_remove(&mut self, range: Range<T::Type>, temp: &mut [u8]) -> Result<(), RangeError<T>>;
+fn merge_extend<I>(&mut self, ranges: I, temp: &mut [u8]) -> Result<(), RangeError<T>>
+where I: IntoIterator<Item = T>;
+fn contains_point(&self, value: T::Type) -> bool;
+```
 
-- `contains(value)` - Check if a value is contained by any interval
-- `is_empty()` - Check if the set is empty
-- `len()` - Return the number of merged intervals
+#### RangeVecAllocOps (Alloc Mode)
 
-### Access Methods
+Provides interval operations for dynamic vectors (`alloc::vec::Vec<T>`):
 
-- `as_slice()` - Return a normalized interval slice (sorted, merged, non-overlapping)
-- `iter()` - Return a normalized interval iterator (zero-copy)
+- **No temporary buffer needed**: Internally manages temporary storage
+- **Use cases**: Standard environments, dynamic capacity needed
 
-### Other Methods
+```rust
+fn merge_add(&mut self, new_info: T) -> Result<(), RangeError<T>>;
+fn merge_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>>;
+fn merge_extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
+where I: IntoIterator<Item = T>;
+fn contains_point(&self, value: T::Type) -> bool;
+```
 
-- `clear()` - Clear the set
+### Kind System
 
-## Advanced Features
+**Kind** is metadata for each interval, used to:
+
+1. **Control merging behavior**: Only adjacent intervals with the same kind will merge
+2. **Distinguish interval types**: e.g., "read-only", "read-write", "reserved"
+3. **Implement business logic**: e.g., different memory region types, permission levels
+
+Example:
+
+```rust
+// Same kind, will merge
+set.merge_add(MyRange::new(0..10, "A", true), &mut temp)?;
+set.merge_add(MyRange::new(10..20, "A", true), &mut temp)?;
+// Result: [0, 20) kind="A"
+
+// Different kinds, won't merge
+set.merge_add(MyRange::new(0..10, "A", true), &mut temp)?;
+set.merge_add(MyRange::new(10..20, "B", true), &mut temp)?;
+// Result: [0, 10) kind="A", [10, 20) kind="B"
+```
+
+### Temporary Buffer Explanation
+
+In heapless mode, `merge_add` and `merge_remove` operations require a temporary buffer.
+
+**Why is it needed?**
+
+- Interval splitting and merging need temporary storage for intermediate results
+- heapless::Vec cannot dynamically expand during operations
+- Using byte buffers avoids additional generic parameters
+
+**How to calculate size?**
+
+```rust
+// Temporary buffer size = element size × expected max number of elements
+let elem_size = std::mem::size_of::<MyRange>();
+let max_elements = 128;  // Adjust based on actual needs
+let mut temp_buffer = [0u8; elem_size * max_elements];
+
+// More conservative calculation (considering alignment and splitting operations)
+let mut temp_buffer = [0u8; elem_size * max_elements * 2];
+```
+
+**Best practices:**
+
+- Reserve sufficient space: At least enough to store all current elements
+- Reusable: The same buffer can be used for multiple operations
+- Can be static: Suitable for global singleton scenarios
+
+## Usage Guide
 
 ### Interval Overwrite Control
 
 ```rust
-// Add a non-overwritable interval
-set.add(MyRange::new(10..30, "protected", false))?;
+let mut set: heapless::Vec<MyRange, 16> = heapless::Vec::new();
+let mut temp = [0u8; 1024];
 
-// Attempting to add a conflicting interval will return an error
-let result = set.add(MyRange::new(20..40, "new", true));
-assert!(result.is_err()); // Returns RangeError::Conflict
+// Add a non-overwritable interval
+set.merge_add(MyRange {
+    range: 10..30,
+    kind: "protected",
+    overwritable: false,  // Not overwritable
+}, &mut temp)?;
+
+// Attempting to add a conflicting interval will fail
+let result = set.merge_add(MyRange {
+    range: 20..40,
+    kind: "new",
+    overwritable: true,
+}, &mut temp);
+assert!(matches!(result, Err(RangeError::Conflict { .. })));
 
 // Overwritable intervals can be replaced
-set.add(MyRange::new(5..15, "overwritable", true))?; // Overwritable
-set.add(MyRange::new(10..25, "replacer", true))?; // Will overwrite overlapping parts
+set.merge_add(MyRange {
+    range: 5..15,
+    kind: "overwritable",
+    overwritable: true,  // Overwritable
+}, &mut temp)?;
+
+set.merge_add(MyRange {
+    range: 10..25,
+    kind: "replacer",
+    overwritable: true,
+}, &mut temp)?;
+// [5, 15) is partially overlapped and merged by [10, 25)
 ```
 
-### Error Handling
+### Interval Splitting
 
 ```rust
-match set.add(range) {
+let mut set: heapless::Vec<MyRange, 16> = heapless::Vec::new();
+let mut temp = [0u8; 1024];
+
+set.merge_add(MyRange::new(10..40, "A", true), &mut temp)?;
+// Current: [10, 40) kind="A"
+
+// Remove middle part
+set.merge_remove(20..30, &mut temp)?;
+// Result: [10, 20) kind="A", [30, 40) kind="A"
+assert_eq!(set.len(), 2);
+```
+
+### Batch Operations
+
+```rust
+let ranges = vec![
+    MyRange::new(0..10, "A", true),
+    MyRange::new(10..20, "A", true),
+    MyRange::new(20..30, "B", true),
+];
+
+// heapless mode
+set.merge_extend(ranges, &mut temp)?;
+
+// alloc mode
+set.merge_extend(ranges)?;
+```
+
+## Error Handling
+
+```rust
+pub enum RangeError<T>
+where
+    T: RangeInfo,
+{
+    /// Insufficient capacity (heapless mode only)
+    Capacity,
+
+    /// Interval conflict: attempting to overwrite a non-overwritable interval
+    Conflict {
+        new: T,        // Newly added interval
+        existing: T,   // Existing conflicting interval
+    },
+}
+```
+
+Example:
+
+```rust
+match set.merge_add(new_range, &mut temp_buffer) {
     Ok(()) => println!("Add successful"),
     Err(RangeError::Capacity) => println!("Insufficient capacity"),
     Err(RangeError::Conflict { new, existing }) => {
-        println!("Interval conflict: {:?} conflicts with {:?}", new, existing);
+        println!("Conflict: new interval {:?} conflicts with {:?}", new, existing);
     }
 }
 ```
 
-## Features
+## Example Code
 
-- **`no_std` compatible**: Suitable for embedded and bare-metal environments
-- **Zero-copy iteration**: `iter()` method returns interval references, avoiding unnecessary copying
-- **Smart merging**: Adjacent/overlapping intervals with the same kind automatically merge
-- **Efficient implementation**: Uses binary search to optimize insertion and query performance
-- **Flexible metadata**: Supports arbitrary type metadata
-- **Overwrite control**: Precise control over which intervals can be overwritten by other intervals
+The project includes the following examples (located in the `examples/` directory):
 
-## Examples
+### debug_demo.rs - Basic Debugging
 
-See the `examples/` directory for more examples:
+Demonstrates basic interval merging and iteration.
 
-- `debug_demo.rs` - Basic debugging example
-- `key_demo.rs` - Example using different kinds
-- `overlap_demo.rs` - Detailed demonstration of interval overwriting and merging
+Run:
+
+```bash
+cargo run --example debug_demo
+```
+
+### key_demo.rs - Kind Demonstration
+
+Shows how intervals with different kinds interact.
+
+Run:
+
+```bash
+cargo run --example key_demo
+```
+
+### overlap_demo.rs - Overwrite and Splitting
+
+Demonstrates various scenarios of interval overwriting and splitting.
+
+Run:
+
+```bash
+cargo run --example overlap_demo
+```
+
+### slicevec_demo.rs - Temporary Buffer
+
+Shows how to use temporary buffers.
+
+Run:
+
+```bash
+cargo run --example slicevec_demo
+```
+
+## Mode Selection
+
+### Heapless Mode
+
+**Pros:**
+
+- Stack-allocated, no heap fragmentation
+- Predictable memory usage
+- Suitable for no_std environments
+- Compile-time determined capacity
+
+**Cons:**
+
+- Requires temporary buffer
+- Fixed capacity, may overflow
+- Manual buffer size management needed
+
+**Use cases:**
+
+- Embedded systems
+- Bare-metal programs
+- Deterministic memory management required
+- Predictable number of intervals
+
+### Alloc Mode
+
+**Pros:**
+
+- No temporary buffer needed
+- Dynamic capacity, won't overflow
+- Simpler API
+
+**Cons:**
+
+- Requires heap allocator
+- Potential memory fragmentation
+- Not suitable for strict no_std environments
+
+**Use cases:**
+
+- Standard environments
+- Unpredictable number of intervals
+- Development convenience prioritized
+
+## Performance and Limitations
+
+### Time Complexity
+
+- **Add interval** (`merge_add`): O(n) - needs to traverse existing intervals
+- **Remove interval** (`merge_remove`): O(n) - needs to traverse and split
+- **Query contains** (`contains_point`): O(log n) - uses binary search
+- **Iteration** (`iter`): O(n) - zero-copy, just iteration
+
+### Space Complexity
+
+- **heapless mode**: O(N) - N is compile-time specified capacity
+- **alloc mode**: O(n) - n is actual number of stored intervals
+- **Temporary buffer**: O(n) - additional space needed for heapless mode
+
+### Limitations
+
+1. **Capacity limitation (heapless mode)**
+
+   - Exceeding capacity returns `RangeError::Capacity`
+   - Need to estimate maximum number of intervals
+
+2. **Type requirements**
+
+   - `RangeInfo::Type` must implement `Ord + Copy`
+   - `RangeInfo::Kind` must implement `Debug + Eq + Clone`
+
+3. **Interval semantics**
+   - Uses half-open intervals `[start, end)`
+   - Intervals with `start >= end` are ignored
+
+## FAQ
+
+### Q: How to calculate the temporary buffer size?
+
+**A:** Buffer size depends on interval type size and expected maximum number of elements:
+
+```rust
+let elem_size = std::mem::size_of::<MyRange>();
+let max_elements = 128;  // Expected max number of intervals
+let mut temp_buffer = [0u8; elem_size * max_elements];
+
+// More conservative calculation (considering alignment and split operations)
+let mut temp_buffer = [0u8; elem_size * max_elements * 2];
+```
+
+### Q: Why do only intervals with the same kind merge?
+
+**A:** This design supports finer-grained interval management:
+
+```rust
+// Scenario: memory region management
+// May need to distinguish "read-only", "read-write", "reserved" regions
+// Even if adjacent, they should not merge
+
+set.merge_add(MemoryRange::new(0x1000..0x2000, "read-only", true), &mut temp)?;
+set.merge_add(MemoryRange::new(0x2000..0x3000, "read-write", true), &mut temp)?;
+// Result keeps two separate intervals
+```
+
+### Q: How to use in strict no_std environments?
+
+**A:** Use heapless mode with stack-allocated buffer:
+
+```rust
+#![no_std]
+
+#[cfg(test)]
+mod tests {
+    use ranges_ext::{RangeInfo, RangeVecOps};
+
+    #[test]
+    fn test_heapless() {
+        let mut temp_buffer = [0u8; 1024];
+        let mut set: heapless::Vec<MyRange, 16> = heapless::Vec::new();
+        // ... test code
+    }
+}
+```
+
+### Q: What should I pay attention to when upgrading from 0.2.x to 0.5.0?
+
+**A:** Major changes:
+
+1. **RangeInfo::kind() return type changed**
+
+   ```rust
+   // Old version
+   fn kind(&self) -> &Self::Kind;
+
+   // New version (0.5.0)
+   fn kind(&self) -> Self::Kind;
+   ```
+
+2. **RangeSet struct no longer provided**
+
+   - Directly use `heapless::Vec<T, N>` or `alloc::vec::Vec<T>`
+   - Gain interval operations through `RangeVecOps` or `RangeVecAllocOps` traits
+
+3. **API renamed**
+   - `add()` → `merge_add()`
+   - `remove()` → `merge_remove()`
+   - `extend()` → `merge_extend()`
+   - `contains()` → `contains_point()`
+
+### Q: How to handle interval conflicts?
+
+**A:** Use the `overwritable` field to control:
+
+```rust
+// Protect critical intervals
+set.merge_add(MyRange::new(0..1000, "critical", false), &mut temp)?;
+
+// Attempting to overwrite will fail
+match set.merge_add(MyRange::new(500..1500, "new", true), &mut temp) {
+    Err(RangeError::Conflict { new, existing }) => {
+        eprintln!("Cannot overwrite critical interval: {:?}", existing);
+    }
+    _ => {}
+}
+```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
 
 ## License
 

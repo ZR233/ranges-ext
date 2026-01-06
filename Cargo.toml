@@ -11,9 +11,10 @@ repository = "https://github.com/ZR233/ranges-ext"
 version = "0.4.0"
 
 [features]
-default = ["alloc"]
 alloc = []
+default = ["alloc"]
 
 [dependencies]
 heapless = "0.9"
 thiserror = {version = "2.0", default-features = false}
+tinyvec = {version = "1.8", default-features = false, features = ["alloc"]}

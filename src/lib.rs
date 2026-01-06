@@ -7,8 +7,12 @@ use core::{
     cmp::{max, min},
     fmt::Debug,
     marker::PhantomData,
-    ops::{Deref, Range, RangeBounds},
+    mem,
+    ops::{Deref, DerefMut, Range, RangeBounds},
+    slice,
 };
+
+use tinyvec::SliceVec;
 
 pub type RangeSetHeapless<T, const C: usize = 128> = RangeSet<T, heapless::Vec<T, C>>;
 #[cfg(feature = "alloc")]
@@ -33,7 +37,7 @@ where
     },
 }
 
-pub trait RangeInfo: Debug + Clone + Sized {
+pub trait RangeInfo: Debug + Clone + Sized + Default {
     type Kind: Debug + Eq + Clone;
     type Type: Ord + Copy;
     fn range(&self) -> Range<Self::Type>;
@@ -42,7 +46,7 @@ pub trait RangeInfo: Debug + Clone + Sized {
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }
 
-pub trait VecOp<T>: Default + Deref<Target = [T]> {
+pub trait VecOp<T>: Default + Deref<Target = [T]> + DerefMut {
     fn push_back(&mut self, item: T) -> Result<(), T>;
     fn clear(&mut self);
     fn insert(&mut self, index: usize, item: T) -> Result<(), T>;
@@ -180,8 +184,23 @@ where
         self.elements.clear();
     }
 
-    fn push_back(out: &mut V, elem: T) -> Result<(), RangeError<T>> {
+    fn push_back<V2: VecOp<T>>(out: &mut V2, elem: T) -> Result<(), RangeError<T>> {
         out.push_back(elem).map_err(|_| RangeError::Capacity)
+    }
+
+    /// 将字节缓冲区转换为 T 类型的可变切片
+    ///
+    /// # Safety
+    ///
+    /// 调用者必须确保：
+    /// - buffer 的对齐方式适合 T 类型
+    /// - buffer 的大小至少为 size_of::<T>() * 所需元素数
+    #[inline]
+    fn bytes_to_slice_mut(buffer: &mut [u8]) -> &mut [T] {
+        let len = buffer.len() / mem::size_of::<T>();
+        let ptr = buffer.as_mut_ptr() as *mut T;
+        // Safety: 调用者负责确保对齐和大小
+        unsafe { slice::from_raw_parts_mut(ptr, len) }
     }
 
     /// 添加一个区间；会把与其重叠或相邻且 kind 相等的区间自动合并。
@@ -189,11 +208,17 @@ where
     /// - 如果旧区间可覆盖，则用新区间覆盖交集部分
     /// - 如果旧区间不可覆盖，则返回冲突错误
     ///
+    /// # Arguments
+    ///
+    /// * `new_info` - 要添加的区间
+    /// * `temp_buffer` - 临时内存缓冲区（字节数组），用于处理中间结果
+    ///   建议大小为 `size_of::<T>() * capacity * (2-3)`，以应对区间分割情况
+    ///
     /// # Errors
     ///
     /// - 如果容量不足，返回 `RangeSetError::Capacity`。
     /// - 如果与不可覆盖的区间冲突，返回 `RangeSetError::Conflict`。
-    pub fn add(&mut self, new_info: T) -> Result<(), RangeError<T>> {
+    pub fn add(&mut self, new_info: T, temp_buffer: &mut [u8]) -> Result<(), RangeError<T>> {
         if new_info.range().start >= new_info.range().end {
             return Ok(());
         }
@@ -219,30 +244,35 @@ where
             }
         }
 
-        // 所有冲突都可以覆盖，现在开始处理
-        let mut out = V::default();
+        // 所有冲突都可以覆盖，使用临时内存处理
+        let temp_slice = Self::bytes_to_slice_mut(temp_buffer);
+        let mut out = SliceVec::from_slice_len(temp_slice, 0);
 
         for elem in self.elements.drain(..) {
             // 如果没有交集，保留
             if !Self::ranges_overlap(&elem.range(), &new_info.range()) {
-                Self::push_back(&mut out, elem)?;
+                out.push(elem);
                 continue;
             }
 
             // 如果 kind 相同，稍后处理合并
             if elem.kind() == new_info.kind() {
-                Self::push_back(&mut out, elem)?;
+                out.push(elem);
                 continue;
             }
 
             // kind 不同且有交集：分割原区间（已经确认可覆盖）
             let split_parts = Self::split_range(&elem, &new_info.range());
             for part in split_parts.iter().flatten() {
-                Self::push_back(&mut out, part.clone())?;
+                out.push(part.clone());
             }
         }
 
-        self.elements = out;
+        // 将处理后的结果复制回原数组（正序）
+        let out_len = out.len();
+        for i in 0..out_len {
+            Self::push_back(&mut self.elements, out[i].clone())?;
+        }
 
         // 现在插入新区间，并与同 kind 的区间合并
         if self.elements.is_empty() {
@@ -315,43 +345,63 @@ where
     ///
     /// 若被删除区间位于某个已有区间内部，会导致该已有区间被拆分为两段（保留原有 kind）。
     ///
+    /// # Arguments
+    ///
+    /// * `range` - 要删除的区间
+    /// * `temp_buffer` - 临时内存缓冲区（字节数组），用于处理中间结果
+    ///
     /// # Errors
     ///
     /// 如果容量不足（删除操作导致区间分裂，新区间数量超过容量），返回 `RangeSetError::Capacity`。
-    pub fn remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>> {
+    pub fn remove(
+        &mut self,
+        range: Range<T::Type>,
+        temp_buffer: &mut [u8],
+    ) -> Result<(), RangeError<T>> {
         if range.start >= range.end || self.elements.is_empty() {
             return Ok(());
         }
 
-        let mut out = V::default();
+        let temp_slice = Self::bytes_to_slice_mut(temp_buffer);
+        let mut out = SliceVec::from_slice_len(temp_slice, 0);
         for elem in self.elements.drain(..) {
             // 无交集
             if !Self::ranges_overlap(&elem.range(), &range) {
-                Self::push_back(&mut out, elem)?;
+                out.push(elem);
                 continue;
             }
 
             // 有交集，需要分割
             let split_parts = Self::split_range(&elem, &range);
             for part in split_parts.iter().flatten() {
-                Self::push_back(&mut out, part.clone())?;
+                out.push(part.clone());
             }
         }
-        self.elements = out;
+
+        // 将处理后的结果复制回原数组（正序）
+        let out_len = out.len();
+        for i in 0..out_len {
+            Self::push_back(&mut self.elements, out[i].clone())?;
+        }
         Ok(())
     }
 
     /// 批量添加多个区间。
     ///
+    /// # Arguments
+    ///
+    /// * `ranges` - 要添加的区间集合
+    /// * `temp_buffer` - 临时内存缓冲区（字节数组）
+    ///
     /// # Errors
     ///
     /// 如果容量不足，返回 `RangeSetError::Capacity`。
-    pub fn extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
+    pub fn extend<I>(&mut self, ranges: I, temp_buffer: &mut [u8]) -> Result<(), RangeError<T>>
     where
         I: IntoIterator<Item = T>,
     {
         for v in ranges {
-            self.add(v)?;
+            self.add(v, temp_buffer)?;
         }
         Ok(())
     }

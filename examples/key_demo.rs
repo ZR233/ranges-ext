@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现
@@ -7,6 +7,16 @@ struct StrRange<T> {
     range: core::ops::Range<T>,
     kind: &'static str,
     overwritable: bool,
+}
+
+impl<T: Default> Default for StrRange<T> {
+    fn default() -> Self {
+        Self {
+            range: T::default()..T::default(),
+            kind: Default::default(),
+            overwritable: false,
+        }
+    }
 }
 
 impl<T> StrRange<T> {
@@ -19,7 +29,7 @@ impl<T> StrRange<T> {
     }
 }
 
-impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for StrRange<T> {
+impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for StrRange<T> {
     type Kind = &'static str;
     type Type = T;
 
@@ -52,6 +62,16 @@ struct IntRange<T> {
     overwritable: bool,
 }
 
+impl<T: Default> Default for IntRange<T> {
+    fn default() -> Self {
+        Self {
+            range: T::default()..T::default(),
+            kind: 0,
+            overwritable: false,
+        }
+    }
+}
+
 impl<T> IntRange<T> {
     fn new(range: core::ops::Range<T>, kind: i32, overwritable: bool) -> Self {
         Self {
@@ -62,7 +82,7 @@ impl<T> IntRange<T> {
     }
 }
 
-impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for IntRange<T> {
+impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for IntRange<T> {
     type Kind = i32;
     type Type = T;
 
@@ -88,14 +108,15 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for IntRange<T> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut temp_buffer = [0u8; 1024];
     // 使用字符串作为 kind 的示例
-    let mut set: RangeSetHeapless<StrRange<i32>> = RangeSetHeapless::default();
+    let mut set: heapless::Vec<StrRange<i32>, 128> = heapless::Vec::new();
 
     // 添加不同类型的区间（使用不同的 kind）
-    set.add(StrRange::new(0..10, "type_a", true))?;
-    set.add(StrRange::new(5..15, "type_b", true))?; // 与 type_a 重叠，但 kind 不同，会分割
-    set.add(StrRange::new(20..30, "type_a", true))?;
-    set.add(StrRange::new(25..35, "type_a", true))?; // 与上一个 type_a 重叠，会合并
+    set.merge_add(StrRange::new(0..10, "type_a", true), &mut temp_buffer)?;
+    set.merge_add(StrRange::new(5..15, "type_b", true), &mut temp_buffer)?; // 与 type_a 重叠，但 kind 不同，会分割
+    set.merge_add(StrRange::new(20..30, "type_a", true), &mut temp_buffer)?;
+    set.merge_add(StrRange::new(25..35, "type_a", true), &mut temp_buffer)?; // 与上一个 type_a 重叠，会合并
 
     println!("=== 带 kind 的区间集合 ===");
     for info in set.iter() {
@@ -108,11 +129,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 演示：只有 kind 相同的相邻区间才会合并
-    let mut set2: RangeSetHeapless<IntRange<i32>> = RangeSetHeapless::default();
-    set2.add(IntRange::new(0..10, 1, true))?;
-    set2.add(IntRange::new(10..20, 1, true))?; // kind 相同且相邻，会合并
-    set2.add(IntRange::new(20..30, 2, true))?; // kind 不同，不合并
-    set2.add(IntRange::new(30..40, 2, true))?; // kind 相同且相邻，会合并
+    let mut set2: heapless::Vec<IntRange<i32>, 128> = heapless::Vec::new();
+    let mut temp_buffer2 = [0u8; 1024];
+    set2.merge_add(IntRange::new(0..10, 1, true), &mut temp_buffer2)?;
+    set2.merge_add(IntRange::new(10..20, 1, true), &mut temp_buffer2)?; // kind 相同且相邻，会合并
+    set2.merge_add(IntRange::new(20..30, 2, true), &mut temp_buffer2)?; // kind 不同，不合并
+    set2.merge_add(IntRange::new(30..40, 2, true), &mut temp_buffer2)?; // kind 相同且相邻，会合并
 
     println!("\n=== 相邻区间合并示例 ===");
     for info in set2.iter() {

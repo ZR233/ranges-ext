@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetOps3};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 简单的区间信息实现，用于示例

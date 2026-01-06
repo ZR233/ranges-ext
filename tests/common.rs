@@ -85,7 +85,9 @@ impl<T, K> TestRangeWithKind<T, K> {
     }
 }
 
-impl<T: Ord + Copy + Debug + Default, K: Debug + Eq + Clone + Default> RangeInfo for TestRangeWithKind<T, K> {
+impl<T: Ord + Copy + Debug + Default, K: Debug + Eq + Clone + Default> RangeInfo
+    for TestRangeWithKind<T, K>
+{
     type Kind = K;
     type Type = T;
 

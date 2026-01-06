@@ -9,11 +9,14 @@ use core::{
     ops::Range,
 };
 
-use tinyvec::SliceVec;
+mod core_ops;
+mod heapless_impl;
+mod helpers;
 
-use crate::helpers::bytes_to_slice_mut;
+#[cfg(feature = "alloc")]
+mod alloc_ops;
 
-pub trait VecOps<T: RangeInfo> {
+pub(crate) trait VecOps<T: RangeInfo> {
     fn push(&mut self, item: T) -> Result<(), RangeError<T>>;
     fn as_slice(&self) -> &[T];
     fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
@@ -28,8 +31,12 @@ pub trait VecOps<T: RangeInfo> {
     fn clear(&mut self);
 }
 
-pub trait RangeSetOps2<T: RangeInfo>: VecOps<T> {
-    fn merge_add2(&mut self, new_info: T, temp: &mut impl VecOps<T>) -> Result<(), RangeError<T>> {
+pub(crate) trait RangeSetBaseOps<T: RangeInfo>: VecOps<T> {
+    fn merge_add_with_temp(
+        &mut self,
+        new_info: T,
+        temp: &mut impl VecOps<T>,
+    ) -> Result<(), RangeError<T>> {
         temp.clear();
         if !core_ops::validate_range(&new_info) {
             return Ok(());
@@ -99,7 +106,7 @@ pub trait RangeSetOps2<T: RangeInfo>: VecOps<T> {
         Ok(())
     }
 
-    fn merge_remove2(
+    fn merge_remove_with_temp(
         &mut self,
         range: Range<T::Type>,
         temp: &mut impl VecOps<T>,
@@ -130,173 +137,16 @@ pub trait RangeSetOps2<T: RangeInfo>: VecOps<T> {
     }
 }
 
-pub trait RangeSetOps3<T: RangeInfo>: RangeSetOps2<T> {
-    fn merge_add(&mut self, new_info: T, temp: &mut [u8]) -> Result<(), RangeError<T>> {
-        let temp_buff = bytes_to_slice_mut::<T>(temp);
-        let mut temp = SliceVec::from_slice_len(temp_buff, 0);
-        self.merge_add2(new_info, &mut temp)?;
-        Ok(())
-    }
+pub trait RangeSetOps<T: RangeInfo> {
+    fn merge_add(&mut self, new_info: T, temp: &mut [u8]) -> Result<(), RangeError<T>>;
 
-    fn merge_remove(
-        &mut self,
-        range: Range<T::Type>,
-        temp: &mut [u8],
-    ) -> Result<(), RangeError<T>> {
-        let temp_buff = bytes_to_slice_mut::<T>(temp);
-        let mut temp = SliceVec::from_slice_len(temp_buff, 0);
-        self.merge_remove2(range, &mut temp)?;
-        Ok(())
-    }
+    fn merge_remove(&mut self, range: Range<T::Type>, temp: &mut [u8])
+    -> Result<(), RangeError<T>>;
 
     fn merge_extend<I>(&mut self, ranges: I, temp: &mut [u8]) -> Result<(), RangeError<T>>
     where
-        I: IntoIterator<Item = T>,
-    {
-        for info in ranges {
-            self.merge_add(info, temp)?;
-        }
-
-        Ok(())
-    }
-
-    fn merge_contains_point(&self, value: T::Type) -> bool {
-        core_ops::contains_point(self.as_slice(), value)
-    }
-}
-
-impl<T: RangeInfo, const N: usize> RangeSetOps3<T> for heapless::Vec<T, N> {}
-
-impl<T: RangeInfo, const N: usize> VecOps<T> for heapless::Vec<T, N> {
-    fn push(&mut self, item: T) -> Result<(), RangeError<T>> {
-        self.push(item).map_err(|_| RangeError::Capacity)
-    }
-
-    fn as_slice(&self) -> &[T] {
-        self.as_slice()
-    }
-
-    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
-    where
-        R: core::ops::RangeBounds<usize>,
-    {
-        self.drain(range)
-    }
-
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    fn remove(&mut self, index: usize) -> T {
-        self.remove(index)
-    }
-
-    fn insert(&mut self, index: usize, item: T) -> Result<(), RangeError<T>> {
-        self.insert(index, item).map_err(|_| RangeError::Capacity)
-    }
-
-    fn clear(&mut self) {
-        self.clear();
-    }
-}
-
-impl<T: RangeInfo> VecOps<T> for SliceVec<'_, T> {
-    fn push(&mut self, item: T) -> Result<(), RangeError<T>> {
-        if self.len() >= self.capacity() {
-            return Err(RangeError::Capacity);
-        }
-        self.push(item);
-        Ok(())
-    }
-
-    fn as_slice(&self) -> &[T] {
-        self.as_slice()
-    }
-
-    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
-    where
-        R: core::ops::RangeBounds<usize>,
-    {
-        self.drain(range)
-    }
-
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    fn remove(&mut self, index: usize) -> T {
-        self.remove(index)
-    }
-
-    fn insert(&mut self, index: usize, item: T) -> Result<(), RangeError<T>> {
-        if index > self.len() || self.len() >= self.capacity() {
-            return Err(RangeError::Capacity);
-        }
-
-        self.insert(index, item);
-        Ok(())
-    }
-
-    fn clear(&mut self) {
-        self.clear();
-    }
-}
-#[cfg(feature = "alloc")]
-impl<T: RangeInfo> VecOps<T> for alloc::vec::Vec<T> {
-    fn push(&mut self, item: T) -> Result<(), RangeError<T>> {
-        self.push(item);
-        Ok(())
-    }
-
-    fn as_slice(&self) -> &[T] {
-        self.as_slice()
-    }
-
-    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = T>
-    where
-        R: core::ops::RangeBounds<usize>,
-    {
-        self.drain(range)
-    }
-
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    fn remove(&mut self, index: usize) -> T {
-        self.remove(index)
-    }
-
-    fn insert(&mut self, index: usize, item: T) -> Result<(), RangeError<T>> {
-        self.insert(index, item);
-        Ok(())
-    }
-
-    fn clear(&mut self) {
-        self.clear();
-    }
-}
-
-impl<T: RangeInfo, const N: usize> RangeSetOps2<T> for heapless::Vec<T, N> {}
-
-/// RangeSet 操作 trait，为容器类型提供区间集合功能
-pub trait RangeSetOps<T: RangeInfo> {
-    /// 添加一个区间（会自动合并相邻区间）
-    fn merge_add(&mut self, new_info: T, temp_buffer: &mut [u8]) -> Result<(), RangeError<T>>;
-
-    /// 删除一个区间
-    fn merge_remove(
-        &mut self,
-        range: Range<T::Type>,
-        temp_buffer: &mut [u8],
-    ) -> Result<(), RangeError<T>>;
-
-    /// 批量添加多个区间
-    fn merge_extend<I>(&mut self, ranges: I, temp_buffer: &mut [u8]) -> Result<(), RangeError<T>>
-    where
         I: IntoIterator<Item = T>;
 
-    /// 查询某个值是否落在任意一个区间中
     fn merge_contains_point(&self, value: T::Type) -> bool;
 }
 
@@ -346,12 +196,5 @@ pub trait RangeInfo: Debug + Clone + Sized + Default {
     fn overwritable(&self) -> bool;
     fn clone_with_range(&self, range: Range<Self::Type>) -> Self;
 }
-
-mod core_ops;
-/// 辅助函数模块
-mod helpers;
-
-#[cfg(feature = "alloc")]
-mod alloc_ops;
 
 // mod heapless_ops;

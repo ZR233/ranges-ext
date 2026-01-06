@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetOps3};
+use ranges_ext::{RangeInfo, RangeSetOps};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现
@@ -8,8 +8,6 @@ struct StrRange<T> {
     kind: &'static str,
     overwritable: bool,
 }
-
-
 
 impl<T: Default> Default for StrRange<T> {
     fn default() -> Self {

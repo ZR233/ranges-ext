@@ -49,7 +49,7 @@ fn add_out_of_order_is_normalized() {
 #[test]
 fn contains_works() {
     let mut set = RangeSetHeapless::<TestRange<i32>>::default();
-    set.extend([
+    set.test_extend([
         TestRange::new(r(10, 20), true),
         TestRange::new(r(30, 40), true),
     ])

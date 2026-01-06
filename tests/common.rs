@@ -119,6 +119,9 @@ pub fn temp_buffer() -> [u8; 1024] {
 pub trait TestRangeSetOps<T: RangeInfo> {
     fn test_add(&mut self, info: T) -> Result<(), RangeError<T>>;
     fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>>;
+    fn test_extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
+    where
+        I: IntoIterator<Item = T>;
     fn test_contains_point(&self, value: T::Type) -> bool;
 }
 
@@ -127,12 +130,20 @@ impl<T: RangeInfo, const N: usize> TestRangeSetOps<T> for heapless::Vec<T, N> {
         let mut buffer = temp_buffer();
         self.merge_add(info, &mut buffer)
     }
-    
+
     fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>> {
         let mut buffer = temp_buffer();
         self.merge_remove(range, &mut buffer)
     }
-    
+
+    fn test_extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut buffer = temp_buffer();
+        self.merge_extend(ranges, &mut buffer)
+    }
+
     fn test_contains_point(&self, value: T::Type) -> bool {
         self.merge_contains_point(value)
     }

@@ -59,10 +59,10 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for DemoRange
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_buffer = [0u8; 1024];
     let mut set: RangeSetHeapless<DemoRange<i32>, 16> = RangeSetHeapless::new();
-    set.merge_add(DemoRange::new(1..5, true))?;
-    set.merge_add(DemoRange::new(3..8, true))?;
-    set.merge_add(DemoRange::new(10..15, true))?;
-    set.merge_add(DemoRange::new(12..18, true))?;
+    set.merge_add(DemoRange::new(1..5, true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(3..8, true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(10..15, true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(12..18, true), &mut temp_buffer)?;
 
     println!("=== 区间合并结果 ===");
     for (i, info) in set.iter().enumerate() {

@@ -132,10 +132,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 演示：只有 kind 相同的相邻区间才会合并
     let mut set2: RangeSetHeapless<IntRange<i32>> = RangeSetHeapless::new();
-    set2.merge_add(IntRange::new(0..10, 1, true))?;
-    set2.merge_add(IntRange::new(10..20, 1, true))?; // kind 相同且相邻，会合并
-    set2.merge_add(IntRange::new(20..30, 2, true))?; // kind 不同，不合并
-    set2.merge_add(IntRange::new(30..40, 2, true))?; // kind 相同且相邻，会合并
+    let mut temp_buffer2 = [0u8; 1024];
+    set2.merge_add(IntRange::new(0..10, 1, true), &mut temp_buffer2)?;
+    set2.merge_add(IntRange::new(10..20, 1, true), &mut temp_buffer2)?; // kind 相同且相邻，会合并
+    set2.merge_add(IntRange::new(20..30, 2, true), &mut temp_buffer2)?; // kind 不同，不合并
+    set2.merge_add(IntRange::new(30..40, 2, true), &mut temp_buffer2)?; // kind 相同且相邻，会合并
 
     println!("\n=== 相邻区间合并示例 ===");
     for info in set2.iter() {

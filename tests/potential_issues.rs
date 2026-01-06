@@ -62,13 +62,13 @@ fn test_extend_with_errors() {
 
     set.test_add(TestRange::new(0..5, true)).unwrap();
 
-    // extend 包含多个区间，其中一个会导致错误
+    // test_extend 包含多个区间，其中一个会导致错误
     let ranges = [
         TestRange::new(10..15, true), // OK
         TestRange::new(20..25, true), // 会导致容量溢出
     ];
 
-    let result = set.extend(ranges);
+    let result = set.test_extend(ranges);
     assert!(result.is_err());
     assert_eq!(result.unwrap_err(), RangeError::Capacity);
 

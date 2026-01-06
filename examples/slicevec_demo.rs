@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps, RangeSetOps2, RangeSetOps3};
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -54,10 +54,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DemoRange<i32> 大约 24 字节，预留 24 个元素的空间
     let mut temp_buffer = [0u8; 24 * 24];
 
+    let mut temp = Vec::new();
+
     println!("场景 1: 使用字节缓冲区添加需要分割的区间");
-    set.merge_add(DemoRange::new(0..10, "A", true), &mut temp_buffer)?;
-    set.merge_add(DemoRange::new(20..30, "A", true), &mut temp_buffer)?;
-    set.merge_add(DemoRange::new(40..50, "B", true), &mut temp_buffer)?;
+
+    set.merge_add2(DemoRange::new(0..10, "A", true), &mut temp)?;
+    set.merge_add2(DemoRange::new(20..30, "A", true), &mut temp)?;
+    set.merge_add2(DemoRange::new(40..50, "B", true), &mut temp)?;
 
     println!("初始状态:");
     for info in set.iter() {

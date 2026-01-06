@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetOps};
+use ranges_ext::{RangeInfo, RangeSetOps3};
 use std::ops::Range;
 
 // 带有字符串 kind 的区间信息实现

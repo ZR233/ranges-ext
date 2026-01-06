@@ -117,7 +117,11 @@ pub fn temp_buffer() -> [u8; 1024] {
     [0u8; 1024]
 }
 
-// 扩展 trait，为 heapless::Vec 提供方便的测试方法
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+// 扩展 trait，统一使用 RangeSetBaseOps 进行测试
+#[allow(dead_code)]
 pub trait TestRangeSetOps<T: RangeInfo> {
     fn test_add(&mut self, info: T) -> Result<(), RangeError<T>>;
     fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>>;
@@ -127,26 +131,69 @@ pub trait TestRangeSetOps<T: RangeInfo> {
     fn test_contains_point(&self, value: T::Type) -> bool;
 }
 
+// heapless::Vec 使用 SliceVec 作为临时缓冲区
 impl<T: RangeInfo, const N: usize> TestRangeSetOps<T> for heapless::Vec<T, N> {
     fn test_add(&mut self, info: T) -> Result<(), RangeError<T>> {
+        use ranges_ext::helpers::bytes_to_slice_mut;
+        use tinyvec::SliceVec;
+
         let mut buffer = temp_buffer();
-        self.merge_add(info, &mut buffer)
+        let temp_buff = bytes_to_slice_mut::<T>(&mut buffer);
+        let mut temp = SliceVec::from_slice_len(temp_buff, 0);
+        self.merge_add_with_temp(info, &mut temp)
     }
 
     fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>> {
+        use ranges_ext::helpers::bytes_to_slice_mut;
+        use tinyvec::SliceVec;
+
         let mut buffer = temp_buffer();
-        self.merge_remove(range, &mut buffer)
+        let temp_buff = bytes_to_slice_mut::<T>(&mut buffer);
+        let mut temp = SliceVec::from_slice_len(temp_buff, 0);
+        self.merge_remove_with_temp(range, &mut temp)
     }
 
     fn test_extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
     where
         I: IntoIterator<Item = T>,
     {
-        let mut buffer = temp_buffer();
-        self.merge_extend(ranges, &mut buffer)
+        for info in ranges {
+            self.test_add(info)?;
+        }
+        Ok(())
     }
 
     fn test_contains_point(&self, value: T::Type) -> bool {
-        self.merge_contains_point(value)
+        use ranges_ext::core_ops;
+        core_ops::contains_point(self.as_slice(), value)
+    }
+}
+
+// alloc::vec::Vec 使用 Vec 作为临时缓冲区
+#[cfg(feature = "alloc")]
+impl<T: RangeInfo> TestRangeSetOps<T> for alloc::vec::Vec<T> {
+    fn test_add(&mut self, info: T) -> Result<(), RangeError<T>> {
+        let mut temp = alloc::vec::Vec::new();
+        self.merge_add_with_temp(info, &mut temp)
+    }
+
+    fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>> {
+        let mut temp = alloc::vec::Vec::new();
+        self.merge_remove_with_temp(range, &mut temp)
+    }
+
+    fn test_extend<I>(&mut self, ranges: I) -> Result<(), RangeError<T>>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        for info in ranges {
+            self.test_add(info)?;
+        }
+        Ok(())
+    }
+
+    fn test_contains_point(&self, value: T::Type) -> bool {
+        use ranges_ext::core_ops;
+        core_ops::contains_point(self.as_slice(), value)
     }
 }

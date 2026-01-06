@@ -9,9 +9,9 @@ use core::{
     ops::Range,
 };
 
-mod core_ops;
+pub mod core_ops;
 mod heapless_ops;
-mod helpers;
+pub mod helpers;
 
 #[cfg(feature = "alloc")]
 mod alloc_ops;

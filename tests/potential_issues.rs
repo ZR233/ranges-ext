@@ -10,7 +10,8 @@ fn test_large_range_operations() {
 
     // 使用接近 u32::MAX 的值
     let max_val = u32::MAX - 10;
-    set.test_add(TestRange::new(max_val..u32::MAX, true)).unwrap();
+    set.test_add(TestRange::new(max_val..u32::MAX, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
 
     // 测试包含检查
@@ -40,16 +41,19 @@ fn test_identical_ranges() {
     // 测试添加完全相同的区间
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
-    set.test_add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(0..10, 1, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
 
     // 添加相同的区间（应该合并）
-    set.test_add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(0..10, 1, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
     assert_eq!(set.as_slice()[0].range(), (0..10));
 
     // 添加相同区间但不同 kind（应该替换）
-    set.test_add(TestRangeWithKind::new(0..10, 2, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(0..10, 2, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
     assert_eq!(set.as_slice()[0].range(), (0..10));
     assert_eq!(set.as_slice()[0].kind(), 2);
@@ -104,15 +108,18 @@ fn test_clear_and_reuse() {
     // 测试 clear 后重新使用
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
-    set.test_add(TestRangeWithKind::new(0..10, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(20..30, 2, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(0..10, 1, true))
+        .unwrap();
+    set.test_add(TestRangeWithKind::new(20..30, 2, true))
+        .unwrap();
     assert_eq!(set.len(), 2);
 
     set.clear();
     assert!(set.is_empty());
 
     // 重新使用
-    set.test_add(TestRangeWithKind::new(5..15, 3, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(5..15, 3, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
     assert_eq!(set.as_slice()[0].range(), (5..15));
 }

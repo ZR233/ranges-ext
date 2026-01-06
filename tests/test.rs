@@ -128,8 +128,10 @@ fn only_merge_when_kind_equals() {
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     // 添加两个相邻的区间，但 kind 不同，不应合并
-    set.test_add(TestRangeWithKind::new(r(10, 20), 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(r(20, 30), 2, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(r(10, 20), 1, true))
+        .unwrap();
+    set.test_add(TestRangeWithKind::new(r(20, 30), 2, true))
+        .unwrap();
 
     assert_eq!(set.len(), 2);
     let expected = [
@@ -139,7 +141,8 @@ fn only_merge_when_kind_equals() {
     assert_eq!(set.as_slice(), &expected);
 
     // 添加相邻且 kind 相同的区间，应该合并
-    set.test_add(TestRangeWithKind::new(r(30, 40), 2, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(r(30, 40), 2, true))
+        .unwrap();
 
     assert_eq!(set.len(), 2);
     let expected = [
@@ -149,7 +152,8 @@ fn only_merge_when_kind_equals() {
     assert_eq!(set.as_slice(), &expected);
 
     // 添加重叠但 kind 不同的区间，不应合并（会分割）
-    set.test_add(TestRangeWithKind::new(r(15, 25), 3, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(r(15, 25), 3, true))
+        .unwrap();
 
     assert_eq!(set.len(), 3);
     let expected = [
@@ -192,7 +196,8 @@ fn overwritable_ranges_can_be_replaced() {
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     // 添加一个可覆盖的区间
-    set.test_add(TestRangeWithKind::new(r(10, 30), 1, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(r(10, 30), 1, true))
+        .unwrap();
 
     // 添加一个与之冲突的区间（应该成功，因为旧区间可覆盖）
     set.test_add(TestRangeWithKind::new(r(20, 40), 2, false))

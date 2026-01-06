@@ -39,10 +39,7 @@ pub fn check_conflicts<'a, T: RangeInfo + 'a, I: IntoIterator<Item = &'a T>>(
 }
 
 /// 查找插入位置（二分查找）
-pub fn find_insert_position<T: RangeInfo>(
-    elements: &[T],
-    new_range: &Range<T::Type>,
-) -> usize {
+pub fn find_insert_position<T: RangeInfo>(elements: &[T], new_range: &Range<T::Type>) -> usize {
     elements
         .binary_search_by(|e| {
             if e.range().start < new_range.start {

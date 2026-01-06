@@ -85,8 +85,10 @@ fn test_boundary_overlap() {
 
     // 测试边界相接但不重叠的情况
     set.test_add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(5..10, 1, true)).unwrap(); // 应该合并（相邻且相同 kind）
-    set.test_add(TestRangeWithKind::new(10..15, 2, true)).unwrap(); // kind 不同，不应合并
+    set.test_add(TestRangeWithKind::new(5..10, 1, true))
+        .unwrap(); // 应该合并（相邻且相同 kind）
+    set.test_add(TestRangeWithKind::new(10..15, 2, true))
+        .unwrap(); // kind 不同，不应合并
 
     assert_eq!(set.len(), 2);
     assert_eq!(set.as_slice()[0].range(), (0..10));
@@ -95,7 +97,8 @@ fn test_boundary_overlap() {
     // 测试有间隙的情况
     set.clear();
     set.test_add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(7..10, 1, true)).unwrap(); // 有间隙，不应合并
+    set.test_add(TestRangeWithKind::new(7..10, 1, true))
+        .unwrap(); // 有间隙，不应合并
 
     assert_eq!(set.len(), 2);
     assert_eq!(set.as_slice()[0].range(), (0..5));
@@ -127,11 +130,13 @@ fn test_extreme_values() {
     let mut set = heapless::Vec::<TestRange<i32>, 128>::default();
 
     // 测试极值
-    set.test_add(TestRange::new(i32::MIN..i32::MAX, true)).unwrap();
+    set.test_add(TestRange::new(i32::MIN..i32::MAX, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
 
     // 尝试覆盖整个范围
-    set.test_add(TestRange::new(i32::MIN..i32::MAX, true)).unwrap();
+    set.test_add(TestRange::new(i32::MIN..i32::MAX, true))
+        .unwrap();
     assert_eq!(set.len(), 1);
 
     // 测试 contains 极值

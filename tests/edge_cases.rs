@@ -7,11 +7,14 @@ fn test_merge_complex_scenarios() {
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     set.test_add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(10..15, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(20..25, 2, true)).unwrap(); // 不同 kind
+    set.test_add(TestRangeWithKind::new(10..15, 1, true))
+        .unwrap();
+    set.test_add(TestRangeWithKind::new(20..25, 2, true))
+        .unwrap(); // 不同 kind
 
     // 添加一个能桥接前两个区间的区间
-    set.test_add(TestRangeWithKind::new(3..22, 1, true)).unwrap();
+    set.test_add(TestRangeWithKind::new(3..22, 1, true))
+        .unwrap();
 
     // 期望：前两个区间和新区间合并成一个，第三个区间被分割
     assert_eq!(set.len(), 2);
@@ -84,8 +87,10 @@ fn test_adjacent_but_different_kind() {
     let mut set = heapless::Vec::<TestRangeWithKind<i32, i32>, 128>::default();
 
     set.test_add(TestRangeWithKind::new(0..5, 1, true)).unwrap();
-    set.test_add(TestRangeWithKind::new(5..10, 2, true)).unwrap(); // 相邻但不同 kind
-    set.test_add(TestRangeWithKind::new(10..15, 2, true)).unwrap(); // 与前一个相同 kind
+    set.test_add(TestRangeWithKind::new(5..10, 2, true))
+        .unwrap(); // 相邻但不同 kind
+    set.test_add(TestRangeWithKind::new(10..15, 2, true))
+        .unwrap(); // 与前一个相同 kind
 
     assert_eq!(set.len(), 2);
     assert_eq!(set.as_slice()[0].range(), (0..5));

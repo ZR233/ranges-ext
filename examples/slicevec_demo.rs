@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless};
+use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -46,8 +46,8 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for DemoRange
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 使用字节缓冲区演示 ===\n");
 
-    // 创建一个容量较小的 RangeSet
-    let mut set: RangeSetHeapless<DemoRange<i32>, 8> = RangeSetHeapless::default();
+    // 创建一个容量较小的 heapless::Vec
+    let mut set: RangeSetHeapless<DemoRange<i32>, 8> = RangeSetHeapless::new();
 
     // 创建字节缓冲区用于 add/remove 操作
     // 大小计算：size_of::<DemoRange<i32>>() * 预期容量
@@ -55,9 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_buffer = [0u8; 24 * 24];
 
     println!("场景 1: 使用字节缓冲区添加需要分割的区间");
-    set.add(DemoRange::new(0..10, "A", true), &mut temp_buffer)?;
-    set.add(DemoRange::new(20..30, "A", true), &mut temp_buffer)?;
-    set.add(DemoRange::new(40..50, "B", true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(0..10, "A", true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(20..30, "A", true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(40..50, "B", true), &mut temp_buffer)?;
 
     println!("初始状态:");
     for info in set.iter() {
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 添加一个会导致分割的区间
     println!("\n添加 [5, 45) kind=C (会覆盖和分割多个区间):");
-    set.add(DemoRange::new(5..45, "C", false), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(5..45, "C", false), &mut temp_buffer)?;
 
     for info in set.iter() {
         println!(
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n场景 2: 使用字节缓冲区删除区间");
     println!("删除 [10, 35):");
-    set.remove(10..35, &mut temp_buffer)?;
+    set.merge_remove(10..35, &mut temp_buffer)?;
 
     for info in set.iter() {
         println!(
@@ -100,8 +100,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n场景 3: 字节缓冲区可以复用");
     println!("继续添加新区间使用同一个字节缓冲区:");
-    set.add(DemoRange::new(50..60, "D", true), &mut temp_buffer)?;
-    set.add(DemoRange::new(55..65, "D", true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(50..60, "D", true), &mut temp_buffer)?;
+    set.merge_add(DemoRange::new(55..65, "D", true), &mut temp_buffer)?;
 
     println!("最终状态:");
     for info in set.iter() {

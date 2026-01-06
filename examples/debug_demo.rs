@@ -1,4 +1,4 @@
-use ranges_ext::{RangeInfo, RangeSetHeapless};
+use ranges_ext::{RangeInfo, RangeSetHeapless, RangeSetOps};
 use std::ops::Range;
 
 // 简单的区间信息实现，用于示例
@@ -7,6 +7,18 @@ struct DemoRange<T> {
     range: core::ops::Range<T>,
     kind: (),
     overwritable: bool,
+}
+
+
+
+impl<T: Default> Default for DemoRange<T> {
+    fn default() -> Self {
+        Self {
+            range: T::default()..T::default(),
+            kind: Default::default(),
+            overwritable: false,
+        }
+    }
 }
 
 impl<T> DemoRange<T> {
@@ -19,7 +31,7 @@ impl<T> DemoRange<T> {
     }
 }
 
-impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for DemoRange<T> {
+impl<T: core::fmt::Debug + Clone + Ord + Copy + Default> RangeInfo for DemoRange<T> {
     type Kind = ();
     type Type = T;
 
@@ -45,11 +57,12 @@ impl<T: core::fmt::Debug + Clone + Ord + Copy> RangeInfo for DemoRange<T> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut set: RangeSetHeapless<DemoRange<i32>, 16> = RangeSetHeapless::default();
-    set.add(DemoRange::new(1..5, true))?;
-    set.add(DemoRange::new(3..8, true))?;
-    set.add(DemoRange::new(10..15, true))?;
-    set.add(DemoRange::new(12..18, true))?;
+    let mut temp_buffer = [0u8; 1024];
+    let mut set: RangeSetHeapless<DemoRange<i32>, 16> = RangeSetHeapless::new();
+    set.merge_add(DemoRange::new(1..5, true))?;
+    set.merge_add(DemoRange::new(3..8, true))?;
+    set.merge_add(DemoRange::new(10..15, true))?;
+    set.merge_add(DemoRange::new(12..18, true))?;
 
     println!("=== 区间合并结果 ===");
     for (i, info) in set.iter().enumerate() {

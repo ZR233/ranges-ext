@@ -1,6 +1,8 @@
 // 测试用的通用导入和辅助结构体
-use core::{fmt::Debug, ops::Range};
+use core::{fmt::Debug, ops::Range, slice};
 pub use ranges_ext::*;
+use std::mem;
+use tinyvec::SliceVec;
 
 // 简单的区间信息实现，用于测试
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,12 +133,15 @@ pub trait TestRangeSetOps<T: RangeInfo> {
     fn test_contains_point(&self, value: T::Type) -> bool;
 }
 
+fn bytes_to_slice_mut<T>(buffer: &mut [u8]) -> &mut [T] {
+    let len = buffer.len() / mem::size_of::<T>();
+    let ptr = buffer.as_mut_ptr() as *mut T;
+    unsafe { slice::from_raw_parts_mut(ptr, len) }
+}
+
 // heapless::Vec 使用 SliceVec 作为临时缓冲区
 impl<T: RangeInfo, const N: usize> TestRangeSetOps<T> for heapless::Vec<T, N> {
     fn test_add(&mut self, info: T) -> Result<(), RangeError<T>> {
-        use ranges_ext::helpers::bytes_to_slice_mut;
-        use tinyvec::SliceVec;
-
         let mut buffer = temp_buffer();
         let temp_buff = bytes_to_slice_mut::<T>(&mut buffer);
         let mut temp = SliceVec::from_slice_len(temp_buff, 0);
@@ -144,7 +149,6 @@ impl<T: RangeInfo, const N: usize> TestRangeSetOps<T> for heapless::Vec<T, N> {
     }
 
     fn test_remove(&mut self, range: Range<T::Type>) -> Result<(), RangeError<T>> {
-        use ranges_ext::helpers::bytes_to_slice_mut;
         use tinyvec::SliceVec;
 
         let mut buffer = temp_buffer();
@@ -164,8 +168,7 @@ impl<T: RangeInfo, const N: usize> TestRangeSetOps<T> for heapless::Vec<T, N> {
     }
 
     fn test_contains_point(&self, value: T::Type) -> bool {
-        use ranges_ext::core_ops;
-        core_ops::contains_point(self.as_slice(), value)
+        self.contains_point(value)
     }
 }
 
@@ -193,7 +196,6 @@ impl<T: RangeInfo> TestRangeSetOps<T> for alloc::vec::Vec<T> {
     }
 
     fn test_contains_point(&self, value: T::Type) -> bool {
-        use ranges_ext::core_ops;
-        core_ops::contains_point(self.as_slice(), value)
+        self.contains_point(value)
     }
 }

@@ -61,7 +61,7 @@ impl<T: RangeInfo> RangeSetAllocOps<T> for alloc::vec::Vec<T> {
         Ok(())
     }
 
-    fn merge_contains_point(&self, value: T::Type) -> bool {
+    fn contains_point(&self, value: T::Type) -> bool {
         core_ops::contains_point(self.as_slice(), value)
     }
 }

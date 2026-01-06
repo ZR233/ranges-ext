@@ -37,7 +37,7 @@ impl<T: RangeInfo, const N: usize> RangeSetOps<T> for heapless::Vec<T, N> {
         Ok(())
     }
 
-    fn merge_contains_point(&self, value: T::Type) -> bool {
+    fn contains_point(&self, value: T::Type) -> bool {
         core_ops::contains_point(self.as_slice(), value)
     }
 }

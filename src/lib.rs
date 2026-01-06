@@ -9,9 +9,10 @@ use core::{
     ops::Range,
 };
 
-pub mod core_ops;
+pub(crate) mod core_ops;
 mod heapless_ops;
-pub mod helpers;
+pub(crate) mod helpers;
+pub mod prelude;
 
 #[cfg(feature = "alloc")]
 mod alloc_ops;
@@ -147,7 +148,7 @@ pub trait RangeSetOps<T: RangeInfo> {
     where
         I: IntoIterator<Item = T>;
 
-    fn merge_contains_point(&self, value: T::Type) -> bool;
+    fn contains_point(&self, value: T::Type) -> bool;
 }
 
 /// RangeSet 操作 trait（alloc 版本），为带分配器的容器提供区间集合功能
@@ -166,7 +167,7 @@ pub trait RangeSetAllocOps<T: RangeInfo> {
         I: IntoIterator<Item = T>;
 
     /// 查询某个值是否落在任意一个区间中
-    fn merge_contains_point(&self, value: T::Type) -> bool;
+    fn contains_point(&self, value: T::Type) -> bool;
 }
 
 /// RangeSet 错误类型
